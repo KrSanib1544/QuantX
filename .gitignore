@@ -1,0 +1,12 @@
+﻿.venv/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.db
+.env
+
+node_modules/
+frontend/dashboard/node_modules/
+dist/
+build/
+.next/

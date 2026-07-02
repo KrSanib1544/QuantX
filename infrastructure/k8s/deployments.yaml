@@ -1,0 +1,318 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: default
+  labels:
+    app: api-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+      - name: api-gateway
+        image: quantx-api-gateway:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8005
+        env:
+        - name: DATABASE_URL
+          value: "postgresql://quantx_user:quantx_password@postgres:5432/quantx_db"
+        - name: PORTFOLIO_SERVICE_URL
+          value: "http://portfolio-service:8004/execute-manual"
+        - name: PORTFOLIO_REBALANCE_URL
+          value: "http://portfolio-service:8004/rebalance"
+        - name: AI_PREDICTION_SERVICE_URL
+          value: "http://ai-prediction-service:8006"
+        - name: QUANTUM_RESEARCH_SERVICE_URL
+          value: "http://quantum-research-service:8007"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: default
+spec:
+  selector:
+    app: api-gateway
+  ports:
+  - name: http
+    port: 8005
+    targetPort: 8005
+  type: ClusterIP
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portfolio-service
+  namespace: default
+  labels:
+    app: portfolio-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: portfolio-service
+  template:
+    metadata:
+      labels:
+        app: portfolio-service
+    spec:
+      containers:
+      - name: portfolio-service
+        image: quantx-portfolio-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8004
+        env:
+        - name: DATABASE_URL
+          value: "postgresql://quantx_user:quantx_password@postgres:5432/quantx_db"
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "kafka:9092"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: portfolio-service
+  namespace: default
+spec:
+  selector:
+    app: portfolio-service
+  ports:
+  - name: http
+    port: 8004
+    targetPort: 8004
+  type: ClusterIP
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: market-data-service
+  namespace: default
+  labels:
+    app: market-data-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: market-data-service
+  template:
+    metadata:
+      labels:
+        app: market-data-service
+    spec:
+      containers:
+      - name: market-data-service
+        image: quantx-market-data-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8001
+        env:
+        - name: DATABASE_URL
+          value: "postgresql://quantx_user:quantx_password@postgres:5432/quantx_db"
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "kafka:9092"
+        - name: OFFLINE_MODE
+          value: "true"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: market-data-service
+  namespace: default
+spec:
+  selector:
+    app: market-data-service
+  ports:
+  - name: http
+    port: 8001
+    targetPort: 8001
+  type: ClusterIP
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feature-service
+  namespace: default
+  labels:
+    app: feature-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: feature-service
+  template:
+    metadata:
+      labels:
+        app: feature-service
+    spec:
+      containers:
+      - name: feature-service
+        image: quantx-feature-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8002
+        env:
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "kafka:9092"
+        - name: REDIS_HOST
+          value: "redis"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: feature-service
+  namespace: default
+spec:
+  selector:
+    app: feature-service
+  ports:
+  - name: http
+    port: 8002
+    targetPort: 8002
+  type: ClusterIP
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signal-service
+  namespace: default
+  labels:
+    app: signal-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: signal-service
+  template:
+    metadata:
+      labels:
+        app: signal-service
+    spec:
+      containers:
+      - name: signal-service
+        image: quantx-signal-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8003
+        env:
+        - name: DATABASE_URL
+          value: "postgresql://quantx_user:quantx_password@postgres:5432/quantx_db"
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "kafka:9092"
+        - name: AI_PREDICTION_SERVICE_URL
+          value: "http://ai-prediction-service:8006"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: signal-service
+  namespace: default
+spec:
+  selector:
+    app: signal-service
+  ports:
+  - name: http
+    port: 8003
+    targetPort: 8003
+  type: ClusterIP
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-prediction-service
+  namespace: default
+  labels:
+    app: ai-prediction-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ai-prediction-service
+  template:
+    metadata:
+      labels:
+        app: ai-prediction-service
+    spec:
+      containers:
+      - name: ai-prediction-service
+        image: quantx-ai-prediction-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8006
+        env:
+        - name: DATABASE_URL
+          value: "postgresql://quantx_user:quantx_password@postgres:5432/quantx_db"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-prediction-service
+  namespace: default
+spec:
+  selector:
+    app: ai-prediction-service
+  ports:
+  - name: http
+    port: 8006
+    targetPort: 8006
+  type: ClusterIP
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quantum-research-service
+  namespace: default
+  labels:
+    app: quantum-research-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quantum-research-service
+  template:
+    metadata:
+      labels:
+        app: quantum-research-service
+    spec:
+      containers:
+      - name: quantum-research-service
+        image: quantx-quantum-research-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8007
+        env:
+        - name: DATABASE_URL
+          value: "postgresql://quantx_user:quantx_password@postgres:5432/quantx_db"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quantum-research-service
+  namespace: default
+spec:
+  selector:
+    app: quantum-research-service
+  ports:
+  - name: http
+    port: 8007
+    targetPort: 8007
+  type: ClusterIP

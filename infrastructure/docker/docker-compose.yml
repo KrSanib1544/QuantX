@@ -1,0 +1,200 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: quantx-postgres
+    environment:
+      POSTGRES_USER: quantx_user
+      POSTGRES_PASSWORD: quantx_password
+      POSTGRES_DB: quantx_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../postgres/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quantx_user -d quantx_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: quantx-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Kafka in KRaft mode (no Zookeeper needed)
+  kafka:
+    image: confluentinc/cp-kafka:7.3.0
+    container_name: quantx-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REREPLICATION_FACTOR: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_LIVERPOOL: '29092'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: quantx-prometheus
+    volumes:
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: quantx-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+  api-gateway:
+    build:
+      context: ../../
+      dockerfile: backend/api-gateway/Dockerfile
+    container_name: quantx-api-gateway
+    ports:
+      - "8005:8005"
+    environment:
+      - DATABASE_URL=postgresql://quantx_user:quantx_password@postgres:5432/quantx_db
+      - PORTFOLIO_SERVICE_URL=http://portfolio-service:8004/execute-manual
+      - PORTFOLIO_REBALANCE_URL=http://portfolio-service:8004/rebalance
+      - AI_PREDICTION_SERVICE_URL=http://ai-prediction-service:8006
+      - QUANTUM_RESEARCH_SERVICE_URL=http://quantum-research-service:8007
+    depends_on:
+      postgres:
+        condition: service_healthy
+      portfolio-service:
+        condition: service_started
+      ai-prediction-service:
+        condition: service_started
+      quantum-research-service:
+        condition: service_started
+
+  portfolio-service:
+    build:
+      context: ../../
+      dockerfile: backend/portfolio-service/Dockerfile
+    container_name: quantx-portfolio-service
+    ports:
+      - "8004:8004"
+    environment:
+      - DATABASE_URL=postgresql://quantx_user:quantx_password@postgres:5432/quantx_db
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+
+  market-data-service:
+    build:
+      context: ../../
+      dockerfile: backend/market-data-service/Dockerfile
+    container_name: quantx-market-data-service
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql://quantx_user:quantx_password@postgres:5432/quantx_db
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - OFFLINE_MODE=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+
+  feature-service:
+    build:
+      context: ../../
+      dockerfile: backend/feature-service/Dockerfile
+    container_name: quantx-feature-service
+    ports:
+      - "8002:8002"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - REDIS_HOST=redis
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+
+  signal-service:
+    build:
+      context: ../../
+      dockerfile: backend/signal-service/Dockerfile
+    container_name: quantx-signal-service
+    ports:
+      - "8003:8003"
+    environment:
+      - DATABASE_URL=postgresql://quantx_user:quantx_password@postgres:5432/quantx_db
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - AI_PREDICTION_SERVICE_URL=http://ai-prediction-service:8006
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      ai-prediction-service:
+        condition: service_started
+
+  ai-prediction-service:
+    build:
+      context: ../../
+      dockerfile: backend/ai-prediction-service/Dockerfile
+    container_name: quantx-ai-prediction-service
+    ports:
+      - "8006:8006"
+    environment:
+      - DATABASE_URL=postgresql://quantx_user:quantx_password@postgres:5432/quantx_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  quantum-research-service:
+    build:
+      context: ../../
+      dockerfile: backend/quantum-research-service/Dockerfile
+    container_name: quantx-quantum-research-service
+    ports:
+      - "8007:8007"
+    environment:
+      - DATABASE_URL=postgresql://quantx_user:quantx_password@postgres:5432/quantx_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+
+volumes:
+  postgres_data:
+  redis_data:
+  kafka_data:
+  grafana_data:
