@@ -38,10 +38,12 @@ class AIPredictor:
         self.model_dir = model_dir
         
         self.models: Dict[str, torch.nn.Module] = {}
+        self.ppo_model = None
         self.active_versions: Dict[str, str] = {
             "lstm": "v1.0",
             "gru": "v1.0",
-            "transformer": "v1.0"
+            "transformer": "v1.0",
+            "ppo": "v1.0"
         }
         self.load_models()
 
@@ -86,6 +88,16 @@ class AIPredictor:
                 logger.info(f"Loaded Transformer Forecaster from {transformer_path}")
             except Exception as e:
                 logger.error(f"Failed to load Transformer weights: {e}")
+
+        # 4. PPO RL Agent
+        ppo_path = os.path.abspath(os.path.join(self.model_dir, "../../reinforcement_learning/registry/trading_agent_ppo"))
+        if os.path.exists(ppo_path + ".zip"):
+            try:
+                from stable_baselines3 import PPO
+                self.ppo_model = PPO.load(ppo_path)
+                logger.info(f"Loaded PPO RL Agent from {ppo_path}.zip")
+            except Exception as e:
+                logger.error(f"Failed to load PPO RL Agent weights: {e}")
 
     def fetch_sequence_features(self, symbol: str) -> pd.DataFrame:
         """
@@ -247,3 +259,69 @@ class AIPredictor:
                 attributions[k] = 20.0
                 
         return attributions
+
+    def predict_rl_action(
+        self, 
+        symbol: str, 
+        cash: float = 100000.0, 
+        position_qty: float = 0.0, 
+        average_entry_price: float = 0.0
+    ) -> Tuple[str, List[float], Dict[str, float]]:
+        """
+        Evaluate PPO RL agent policy for the current symbol and account state.
+        Returns: (action, observation_list, account_state_details)
+        """
+        try:
+            seq_df = self.fetch_sequence_features(symbol)
+            features_data = seq_df[ACTIVE_FEATURES].fillna(0.0).iloc[-1].values.astype(np.float32)
+            close_price = float(seq_df.iloc[-1]["close"])
+        except Exception as e:
+            logger.warning(f"Error fetching features for RL action: {e}. Using mock features.")
+            features_data = np.array([0.0005, 50.0, 0.0, 0.0, 1.5], dtype=np.float32)
+            close_price = 180.0
+
+        # Construct account state:
+        # [norm_cash, norm_position, norm_entry, unrealized_pnl]
+        initial_cash = 100000.0
+        norm_cash = cash / initial_cash
+        norm_position = position_qty
+        norm_entry = (average_entry_price / close_price) if close_price > 0 else 0.0
+        
+        unrealized_pnl = 0.0
+        if position_qty > 0 and average_entry_price > 0:
+            unrealized_pnl = (close_price - average_entry_price) / average_entry_price
+            
+        account_state = np.array([norm_cash, norm_position, norm_entry, unrealized_pnl], dtype=np.float32)
+        
+        # Concatenate features and account state to match shape (9,)
+        obs = np.concatenate([features_data, account_state])
+        
+        if self.ppo_model:
+            try:
+                action, _states = self.ppo_model.predict(obs, deterministic=True)
+                action = int(action)
+            except Exception as e:
+                logger.error(f"PPO inference failed: {e}")
+                action = 0
+        else:
+            # Fallback heuristic
+            rsi = features_data[1] if len(features_data) > 1 else 50.0
+            if rsi < 35:
+                action = 1 # BUY
+            elif rsi > 65:
+                action = 2 # SELL
+            else:
+                action = 0 # HOLD
+
+        action_map = {0: "HOLD", 1: "BUY", 2: "SELL"}
+        action_name = action_map.get(action, "HOLD")
+        
+        details = {
+            "norm_cash": float(norm_cash),
+            "norm_position": float(norm_position),
+            "norm_entry": float(norm_entry),
+            "unrealized_pnl": float(unrealized_pnl),
+            "close_price": float(close_price)
+        }
+        
+        return action_name, obs.tolist(), details

@@ -57,3 +57,38 @@ def test_models_list():
     assert len(data) == 3
     assert data[0]["model_id"] == "lstm"
     assert "status" in data[0]
+
+def test_rl_prediction():
+    response = client.get("/api/v1/predictions/AAPL/rl?cash=100000.0&position_qty=10.0&average_entry_price=150.0")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["symbol"] == "AAPL"
+    assert "recommended_action" in data
+    assert "observation" in data
+    assert "details" in data
+    assert data["status"] == "success"
+
+def test_trigger_retrain_and_status(monkeypatch):
+    import subprocess
+    class MockCompletedProcess:
+        def __init__(self, returncode=0, stdout="", stderr=""):
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+            
+    def mock_run(*args, **kwargs):
+        return MockCompletedProcess()
+        
+    monkeypatch.setattr(subprocess, "run", mock_run)
+    
+    response = client.post("/api/v1/models/retrain")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] in ["started", "already_running"]
+    
+    status_response = client.get("/api/v1/models/retrain/status")
+    assert status_response.status_code == 200
+    status_data = status_response.json()
+    assert "status" in status_data
+    assert "in_progress" in status_data
+

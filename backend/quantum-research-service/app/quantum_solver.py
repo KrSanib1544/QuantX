@@ -55,8 +55,10 @@ class QuantumSolver:
             returns_df = self.get_historical_returns(symbols)
         except Exception as e:
             logger.error(f"Error getting historical returns: {e}")
-            # Fallback returns data for testing
-            dates = pd.date_range(end=pd.Timestamp.now(), periods=60)
+            # Fallback returns data for testing (avoiding pd.date_range to prevent Windows/Python 3.13 access violation crashes)
+            import datetime
+            now = datetime.datetime.now()
+            dates = [now - datetime.timedelta(days=i) for i in range(59, -1, -1)]
             returns_df = pd.DataFrame(
                 np.random.normal(0.0005, 0.015, (60, len(symbols))),
                 index=dates,

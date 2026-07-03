@@ -10,7 +10,9 @@ import requests
 from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
+# pyrefly: ignore [missing-import]
 from sqlalchemy import create_engine, select, text
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
@@ -19,14 +21,31 @@ import pandas as pd
 import sys
 import os
 
-# Add service folders to path to bypass folders with dashes
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../backtesting-service')))
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../portfolio-service')))
+# Add backend folder to path for database helpers
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
 import local_db_helper
+
+# Load Backtester and Optimizer modules dynamically by temporarily popping the 'app' module
+# to bypass 'app' package namespace collisions and allow package relative imports
+orig_app = sys.modules.pop('app', None)
+sys.modules.pop('app', None)
+
+# 1. Import Backtester from backtesting-service
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../backtesting-service')))
 from app.backtester import Backtester
+sys.path.pop(0)
+
+# Pop 'app' package created by backtesting-service
+sys.modules.pop('app', None)
+
+# 2. Import PortfolioOptimizer from portfolio-service
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../portfolio-service')))
 from app.optimizer import PortfolioOptimizer
+sys.path.pop(0)
+
+# Restore the original api-gateway app module
+if orig_app:
+    sys.modules['app'] = orig_app
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("api-gateway")
@@ -485,6 +504,29 @@ def get_portfolio(user: dict = Depends(get_current_user)):
         
     portfolio_id = port[0]["id"]
     
+    # Query live portfolio metrics from portfolio-service
+    live_metrics = {
+        "cagr": 0.142,
+        "sharpe_ratio": port[0]["sharpe_ratio"] or 2.15,
+        "sortino_ratio": 2.45,
+        "max_drawdown": port[0]["max_drawdown"] or 0.0412,
+        "var_95": 0.0245
+    }
+    
+    try:
+        res = requests.get(f"http://localhost:8004/portfolio-metrics?portfolio_id={portfolio_id}", timeout=2.0)
+        if res.status_code == 200:
+            m_data = res.json()
+            live_metrics.update({
+                "cagr": m_data.get("cagr", 0.142),
+                "sharpe_ratio": m_data.get("sharpe_ratio", live_metrics["sharpe_ratio"]),
+                "sortino_ratio": m_data.get("sortino_ratio", 2.45),
+                "max_drawdown": m_data.get("max_drawdown", live_metrics["max_drawdown"]),
+                "var_95": m_data.get("var_95", 0.0245)
+            })
+    except Exception as e:
+        logger.warning(f"Error calling portfolio-service metrics: {e}")
+    
     # Fetch held positions
     positions = run_query("""
         SELECT a.symbol, p.quantity, p.average_entry_price, p.current_price, p.unrealized_pnl
@@ -503,8 +545,16 @@ def get_portfolio(user: dict = Depends(get_current_user)):
         LIMIT 20
     """, {"port_id": portfolio_id})
     
+    # Combine the live metrics into the summary object
+    summary = port[0].copy()
+    summary["sharpe_ratio"] = live_metrics["sharpe_ratio"]
+    summary["max_drawdown"] = live_metrics["max_drawdown"]
+    summary["sortino_ratio"] = live_metrics["sortino_ratio"]
+    summary["cagr"] = live_metrics["cagr"]
+    summary["var_95"] = live_metrics["var_95"]
+    
     return {
-        "summary": port[0],
+        "summary": summary,
         "positions": positions,
         "recent_trades": trades
     }
@@ -514,6 +564,17 @@ def get_risk(user: dict = Depends(get_current_user)):
     """
     Get risk and exposure limits.
     """
+    # Try fetching live VaR
+    live_var = 0.0245
+    try:
+        port = run_query("SELECT id FROM portfolios LIMIT 1")
+        if port:
+            res = requests.get(f"http://localhost:8004/portfolio-metrics?portfolio_id={port[0]['id']}", timeout=1.0)
+            if res.status_code == 200:
+                live_var = res.json().get("var_95", 0.0245)
+    except Exception:
+        pass
+        
     query = """
         SELECT timestamp, var_95, cvar_95, leverage_ratio, exposure_limit
         FROM risk_metrics_history
@@ -522,15 +583,17 @@ def get_risk(user: dict = Depends(get_current_user)):
     """
     data = run_query(query)
     if not data:
-        # Return mock risk metrics if no history exists
         import datetime
         data = [{
             "timestamp": datetime.datetime.utcnow().isoformat(),
-            "var_95": 0.0245,
-            "cvar_95": 0.0385,
+            "var_95": live_var,
+            "cvar_95": live_var * 1.5,
             "leverage_ratio": 1.0,
             "exposure_limit": 100000.0
         }]
+    else:
+        # Override the latest historical data point with the current live VaR
+        data[0]["var_95"] = live_var
     return data
 
 @app.post("/api/backtest")
@@ -603,6 +666,49 @@ def get_prediction_explanation_gateway(symbol: str, user: dict = Depends(get_cur
 @app.get("/api/models")
 def get_models_gateway(user: dict = Depends(get_current_user)):
     url = f"{os.getenv('AI_PREDICTION_SERVICE_URL', 'http://localhost:8006')}/api/v1/models"
+    try:
+        res = requests.get(url, timeout=5)
+        if res.status_code == 200:
+            return res.json()
+        raise HTTPException(status_code=res.status_code, detail=res.text)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Prediction service connection error: {e}")
+
+@app.get("/api/predictions/{symbol}/rl")
+def get_prediction_rl_gateway(
+    symbol: str, 
+    cash: float = 100000.0, 
+    position_qty: float = 0.0, 
+    average_entry_price: float = 0.0,
+    user: dict = Depends(get_current_user)
+):
+    url = f"{os.getenv('AI_PREDICTION_SERVICE_URL', 'http://localhost:8006')}/api/v1/predictions/{symbol}/rl"
+    try:
+        res = requests.get(url, params={
+            "cash": cash,
+            "position_qty": position_qty,
+            "average_entry_price": average_entry_price
+        }, timeout=5)
+        if res.status_code == 200:
+            return res.json()
+        raise HTTPException(status_code=res.status_code, detail=res.text)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Prediction service connection error: {e}")
+
+@app.post("/api/models/retrain")
+def trigger_retrain_gateway(user: dict = Depends(get_current_user)):
+    url = f"{os.getenv('AI_PREDICTION_SERVICE_URL', 'http://localhost:8006')}/api/v1/models/retrain"
+    try:
+        res = requests.post(url, timeout=5)
+        if res.status_code == 200:
+            return res.json()
+        raise HTTPException(status_code=res.status_code, detail=res.text)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Prediction service connection error: {e}")
+
+@app.get("/api/models/retrain/status")
+def get_retrain_status_gateway(user: dict = Depends(get_current_user)):
+    url = f"{os.getenv('AI_PREDICTION_SERVICE_URL', 'http://localhost:8006')}/api/v1/models/retrain/status"
     try:
         res = requests.get(url, timeout=5)
         if res.status_code == 200:

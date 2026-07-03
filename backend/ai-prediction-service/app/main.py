@@ -2,7 +2,10 @@ import uvicorn
 import logging
 import os
 import uuid
-from typing import Dict, Any, List
+import sys
+import threading
+import subprocess
+from typing import Dict, Any, List, Tuple
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -139,6 +142,87 @@ def activate_model_version(model_id: str, req: ModelActivationRequest):
     return {
         "status": "success",
         "message": f"Model {model_id} active version updated to {req.version} and reloaded."
+    }
+
+# --- PPO RL AGENT SERVING ---
+@app.get("/api/v1/predictions/{symbol}/rl")
+def get_rl_prediction(
+    symbol: str, 
+    cash: float = 100000.0, 
+    position_qty: float = 0.0, 
+    average_entry_price: float = 0.0
+):
+    symbol = symbol.upper()
+    try:
+        action_name, obs, details = predictor.predict_rl_action(
+            symbol=symbol,
+            cash=cash,
+            position_qty=position_qty,
+            average_entry_price=average_entry_price
+        )
+        return {
+            "symbol": symbol,
+            "recommended_action": action_name,
+            "observation": obs,
+            "details": details,
+            "status": "success"
+        }
+    except Exception as e:
+        logger.error(f"Error predicting RL action for {symbol}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- MODEL RETRAINING PIPELINE ---
+retraining_in_progress = False
+retraining_status = "idle"
+
+def run_retraining_in_background():
+    global retraining_in_progress, retraining_status
+    retraining_in_progress = True
+    retraining_status = "running"
+    try:
+        logger.info("Starting background retraining pipeline...")
+        # Get absolute paths to scripts relative to project root
+        root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+        
+        # 1. Retrain forecasting models (epochs=2 for lightweight training during live trigger)
+        cmd_forecasters = [sys.executable, "ml/forecasting/train.py"]
+        logger.info(f"Executing: {' '.join(cmd_forecasters)}")
+        res1 = subprocess.run(cmd_forecasters, capture_output=True, text=True, cwd=root_dir)
+        
+        # 2. Retrain RL agent (timesteps=100 for lightweight training during live trigger)
+        cmd_rl = [sys.executable, "ml/reinforcement_learning/rl_agent.py"]
+        logger.info(f"Executing: {' '.join(cmd_rl)}")
+        res2 = subprocess.run(cmd_rl, capture_output=True, text=True, cwd=root_dir)
+        
+        if res1.returncode == 0 and res2.returncode == 0:
+            retraining_status = "completed"
+            logger.info("Background retraining pipeline completed successfully.")
+            # Reload predictor models
+            predictor.load_models()
+        else:
+            retraining_status = f"failed (forecasters code: {res1.returncode}, rl code: {res2.returncode})"
+            logger.error(f"Background retraining pipeline failed. Forecasters log:\n{res1.stderr}\nRL log:\n{res2.stderr}")
+    except Exception as e:
+        retraining_status = f"error: {e}"
+        logger.error(f"Background retraining error: {e}")
+    finally:
+        retraining_in_progress = False
+
+@app.post("/api/v1/models/retrain")
+def trigger_retrain():
+    global retraining_in_progress, retraining_status
+    if retraining_in_progress:
+        return {"status": "already_running", "message": "Model retraining is already in progress."}
+    
+    threading.Thread(target=run_retraining_in_background, daemon=True).start()
+    return {"status": "started", "message": "Model retraining pipeline initiated in background."}
+
+@app.get("/api/v1/models/retrain/status")
+def get_retrain_status():
+    global retraining_in_progress, retraining_status
+    return {
+        "status": retraining_status,
+        "in_progress": retraining_in_progress
     }
 
 if __name__ == "__main__":

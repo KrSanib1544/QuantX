@@ -14,7 +14,7 @@ for mod in list(sys.modules.keys()):
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../backend")))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../backend/portfolio-service")))
 import local_db_helper
-from app.main import execute_trade_mock
+import app.main as portfolio_main
 sys.path.pop(0)
 sys.path.pop(0)
 
@@ -52,11 +52,10 @@ def test_execute_trade_mock_buy(test_db, monkeypatch):
     engine, portfolio_id, asset_id = test_db
     
     # Monkeypatch the engine inside main.py to use our in-memory test database
-    import app.main
-    monkeypatch.setattr(app.main, "engine", engine)
+    monkeypatch.setattr(portfolio_main, "engine", engine)
     
     # Execute a BUY trade
-    success, msg, details = execute_trade_mock(
+    success, msg, details = portfolio_main.execute_trade_mock(
         portfolio_id=portfolio_id,
         asset_id=asset_id,
         symbol="AAPL",
@@ -87,8 +86,7 @@ def test_execute_trade_mock_buy(test_db, monkeypatch):
 
 def test_execute_trade_mock_sell(test_db, monkeypatch):
     engine, portfolio_id, asset_id = test_db
-    import app.main
-    monkeypatch.setattr(app.main, "engine", engine)
+    monkeypatch.setattr(portfolio_main, "engine", engine)
     
     # Establish a position first
     with engine.begin() as conn:
@@ -98,7 +96,7 @@ def test_execute_trade_mock_sell(test_db, monkeypatch):
         """), {"port_id": portfolio_id, "asset_id": asset_id})
         
     # Execute a SELL trade
-    success, msg, details = execute_trade_mock(
+    success, msg, details = portfolio_main.execute_trade_mock(
         portfolio_id=portfolio_id,
         asset_id=asset_id,
         symbol="AAPL",
@@ -118,8 +116,7 @@ def test_execute_trade_mock_sell(test_db, monkeypatch):
 
 def test_rebalance_endpoint(test_db, monkeypatch):
     engine, portfolio_id, asset_id = test_db
-    import app.main
-    monkeypatch.setattr(app.main, "engine", engine)
+    monkeypatch.setattr(portfolio_main, "engine", engine)
     
     # Insert historical prices for AAPL (need at least 6 to have len(returns_df) >= 5)
     import datetime
@@ -139,8 +136,8 @@ def test_rebalance_endpoint(test_db, monkeypatch):
             })
             
     # Run optimization preview
-    req = app.main.RebalanceRequest(method="mvo", portfolio_id=portfolio_id, execute=False)
-    res = app.main.rebalance(req)
+    req = portfolio_main.RebalanceRequest(method="mvo", portfolio_id=portfolio_id, execute=False)
+    res = portfolio_main.rebalance(req)
     
     assert res["status"] == "success"
     assert "AAPL" in res["target_weights"]
@@ -149,8 +146,8 @@ def test_rebalance_endpoint(test_db, monkeypatch):
     assert len(res["proposed_trades"]) > 0 # should propose a BUY since we own nothing and AAPL weight is 1.0
     
     # Test actual execution
-    req_exec = app.main.RebalanceRequest(method="mvo", portfolio_id=portfolio_id, execute=True)
-    res_exec = app.main.rebalance(req_exec)
+    req_exec = portfolio_main.RebalanceRequest(method="mvo", portfolio_id=portfolio_id, execute=True)
+    res_exec = portfolio_main.rebalance(req_exec)
     
     assert res_exec["status"] == "success"
     assert res_exec["executed"] is True

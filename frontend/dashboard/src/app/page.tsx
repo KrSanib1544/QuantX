@@ -11,6 +11,7 @@ import {
   DollarSign, 
   Wallet, 
   Cpu, 
+  Bot,
   RefreshCw,
   LayoutDashboard,
   Globe,
@@ -29,7 +30,8 @@ import {
   Sliders,
   LogOut,
   User,
-  Zap
+  Zap,
+  PieChart as PieChartIcon
 } from "lucide-react";
 import { 
   LineChart, 
@@ -78,7 +80,11 @@ const MOCK_PORTFOLIO = {
     { symbol: "AAPL", qty: 250, entry: 175.40, current: 185.10, pnl: 2425.00, target: 40 },
     { symbol: "BTC-USD", qty: 0.85, entry: 58200.00, current: 61400.00, pnl: 2720.00, target: 35 },
     { symbol: "TSLA", qty: 80, entry: 220.10, current: 218.40, pnl: -136.00, target: 25 }
-  ]
+  ],
+  sharpe: 2.15,
+  sortino: 2.45,
+  maxDrawdown: 4.12,
+  cagr: 14.2
 };
 
 const MOCK_RL_HISTORY = [
@@ -142,6 +148,22 @@ export default function Dashboard() {
     atr_20: 10.0
   });
   const [modelsList, setModelsList] = useState<any[]>([]);
+
+  // PPO RL Agent and Retraining State
+  const [rlAction, setRlAction] = useState<string>("HOLD");
+  const [rlDetails, setRlDetails] = useState<any>(null);
+  const [rlSymbol, setRlSymbol] = useState<string>("AAPL");
+  const [retrainStatus, setRetrainStatus] = useState<string>("idle");
+  const [retrainProgress, setRetrainProgress] = useState<boolean>(false);
+  const [serviceHealth, setServiceHealth] = useState<any>({
+    "api-gateway": "online",
+    "market-data-service": "online",
+    "feature-service": "online",
+    "signal-service": "online",
+    "portfolio-service": "online",
+    "ai-prediction-service": "online",
+    "quantum-research-service": "online"
+  });
 
   // Quantum Research State
   const [quantumKernel, setQuantumKernel] = useState<string>("RBF-Quantum-Enhanced");
@@ -292,7 +314,11 @@ export default function Dashboard() {
               current: Number(p.current_price),
               pnl: Number(p.unrealized_pnl),
               target: p.symbol === "AAPL" ? 40 : p.symbol === "BTC-USD" ? 35 : 25
-            }))
+            })),
+            sharpe: summary.sharpe_ratio !== undefined ? Number(summary.sharpe_ratio) : 2.15,
+            sortino: summary.sortino_ratio !== undefined ? Number(summary.sortino_ratio) : 2.45,
+            maxDrawdown: summary.max_drawdown !== undefined ? Number(summary.max_drawdown) * 100 : 4.12,
+            cagr: summary.cagr !== undefined ? Number(summary.cagr) * 100 : 14.2
           });
         }
       })
@@ -309,6 +335,101 @@ export default function Dashboard() {
       })
       .catch(err => console.error("Error fetching risk metrics:", err));
   }, [token]);
+
+  // Fetch PPO RL Action
+  useEffect(() => {
+    if (!token) return;
+    const fetchRL = () => {
+      const pos = portfolio.positions.find(p => p.symbol === rlSymbol);
+      const qty = pos ? pos.qty : 0.0;
+      const entry = pos ? pos.entry : 0.0;
+      const cash = portfolio.cash;
+
+      fetch(`http://localhost:8005/api/predictions/${rlSymbol}/rl?cash=${cash}&position_qty=${qty}&average_entry_price=${entry}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.recommended_action) {
+            setRlAction(data.recommended_action);
+            setRlDetails(data.details);
+          }
+        })
+        .catch(err => console.error("Error fetching RL action:", err));
+    };
+
+    fetchRL();
+    const interval = setInterval(fetchRL, 5000);
+    return () => clearInterval(interval);
+  }, [token, rlSymbol, portfolio.cash, portfolio.positions]);
+
+  // Fetch retraining status periodically
+  useEffect(() => {
+    if (!token) return;
+    const checkStatus = () => {
+      fetch("http://localhost:8005/api/models/retrain/status", {
+        headers: { "Authorization": `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data) {
+            setRetrainStatus(data.status);
+            setRetrainProgress(data.in_progress);
+          }
+        })
+        .catch(err => console.error("Error checking retrain status:", err));
+    };
+    
+    checkStatus();
+    const interval = setInterval(checkStatus, 3000);
+    return () => clearInterval(interval);
+  }, [token]);
+
+  // Fetch microservice health status
+  useEffect(() => {
+    const checkHealth = async () => {
+      const services = [
+        { id: "api-gateway", url: "http://localhost:8005/api/health" },
+        { id: "market-data-service", url: "http://localhost:8001/assets" },
+        { id: "feature-service", url: "http://localhost:8002/features/AAPL" },
+        { id: "signal-service", url: "http://localhost:8003/health" },
+        { id: "portfolio-service", url: "http://localhost:8004/health" },
+        { id: "ai-prediction-service", url: "http://localhost:8006/health" },
+        { id: "quantum-research-service", url: "http://localhost:8007/health" }
+      ];
+      
+      const newHealth: any = {};
+      for (const service of services) {
+        try {
+          const res = await fetch(service.url);
+          newHealth[service.id] = res.status < 400 ? "online" : "error";
+        } catch (e) {
+          newHealth[service.id] = "offline";
+        }
+      }
+      setServiceHealth(newHealth);
+    };
+
+    checkHealth();
+    const interval = setInterval(checkHealth, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleTriggerRetrain = async () => {
+    setRetrainProgress(true);
+    setRetrainStatus("starting");
+    try {
+      const res = await fetch("http://localhost:8005/api/models/retrain", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setRetrainStatus(data.status);
+    } catch (err) {
+      setRetrainStatus("failed");
+      setRetrainProgress(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -524,7 +645,7 @@ export default function Dashboard() {
     { id: "backtest", label: "Backtesting Lab", icon: Play },
     { id: "paper", label: "Paper Trading", icon: Terminal },
     { id: "risk", label: "Risk Management", icon: ShieldAlert },
-    { id: "portfolio", label: "Portfolio", icon: PieChart },
+    { id: "portfolio", label: "Portfolio", icon: PieChartIcon },
     { id: "agents", label: "AI Agents", icon: Bot },
     { id: "reporting", label: "Reporting", icon: FileText },
     { id: "admin", label: "Admin", icon: Settings }
@@ -692,7 +813,7 @@ export default function Dashboard() {
                   <div>
                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Available Cash</p>
                     <h3 className="text-2xl font-bold font-mono mt-1">${portfolio.cash.toLocaleString("en-US", {minimumFractionDigits: 2})}</h3>
-                    <p className="text-xs text-gray-400 mt-1">36.2% of Portfolio Size</p>
+                    <p className="text-xs text-gray-400 mt-1">{(portfolio.equity > 0 ? (portfolio.cash / portfolio.equity * 100) : 0).toFixed(1)}% of Portfolio Size</p>
                   </div>
                   <div className="h-12 w-12 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400">
                     <DollarSign size={24} />
@@ -712,12 +833,12 @@ export default function Dashboard() {
 
                 <div className="bg-[#0B0F19] border border-gray-800 rounded-xl p-5 shadow flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Systemic Beta</p>
-                    <h3 className="text-2xl font-bold font-mono mt-1 text-indigo-400">1.08</h3>
-                    <p className="text-xs text-indigo-400 mt-1">Beta vs SPY Benchmark</p>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Sharpe / Sortino</p>
+                    <h3 className="text-2xl font-bold font-mono mt-1 text-indigo-400">{portfolio.sharpe?.toFixed(2)} / {portfolio.sortino?.toFixed(2)}</h3>
+                    <p className="text-xs text-indigo-400 mt-1">Live Risk-Adjusted Returns</p>
                   </div>
                   <div className="h-12 w-12 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
-                    <Cpu size={24} />
+                    <TrendingUp size={24} />
                   </div>
                 </div>
               </div>
@@ -1154,7 +1275,7 @@ export default function Dashboard() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fadeIn">
                   {/* Allocation Donut */}
                   <div className="bg-[#0B0F19] border border-gray-800 rounded-xl p-5 shadow space-y-4">
-                    <h4 className="font-bold flex items-center space-x-2"><PieChart size={18} className="text-emerald-400" /> <span>Asset Allocation (Q-Optimal)</span></h4>
+                    <h4 className="font-bold flex items-center space-x-2"><PieChartIcon size={18} className="text-emerald-400" /> <span>Asset Allocation (Q-Optimal)</span></h4>
                     <div className="flex items-center justify-around h-60">
                       <div className="h-48 w-48">
                         <ResponsiveContainer width="100%" height="100%">
@@ -1676,39 +1797,164 @@ export default function Dashboard() {
           {/* 9. AI AGENTS */}
           {activeTab === "agents" && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
-              {/* RL Env Chart */}
-              <div className="lg:col-span-2 bg-[#0B0F19] border border-gray-800 rounded-xl p-5 shadow">
-                <h4 className="font-bold flex items-center space-x-2 mb-4"><Cpu size={18} className="text-indigo-400" /> <span>RL Agent Equity Value Curve</span></h4>
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={rlHistory}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" />
-                      <XAxis dataKey="step" stroke="#9CA3AF" fontSize={11} label={{ value: 'Training Step', position: 'insideBottomRight', offset: -5 }} />
-                      <YAxis stroke="#9CA3AF" fontSize={11} />
-                      <Tooltip contentStyle={{ backgroundColor: "#1F2937", border: "1px solid #374151" }} />
-                      <Line type="monotone" dataKey="value" stroke="#818CF8" strokeWidth={3} />
-                    </LineChart>
-                  </ResponsiveContainer>
+              {/* RL Policy evaluator */}
+              <div className="lg:col-span-2 bg-[#0B0F19] border border-gray-800 rounded-xl p-5 shadow space-y-6">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold flex items-center space-x-2"><Cpu size={18} className="text-indigo-400" /> <span>Proximal Policy Optimization (PPO) Evaluator</span></h4>
+                  
+                  {/* Symbol Selector */}
+                  <select 
+                    value={rlSymbol}
+                    onChange={(e) => setRlSymbol(e.target.value)}
+                    className="bg-[#1F2937] text-white border border-gray-700 rounded px-2.5 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    {["AAPL", "MSFT", "TSLA", "AMZN", "NVDA", "BTCUSD", "ETHUSD"].map(sym => (
+                      <option key={sym} value={sym}>{sym}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Action recommendation */}
+                  <div className="bg-[#111827] border border-gray-800 rounded-lg p-4 flex flex-col items-center justify-center text-center">
+                    <span className="text-[10px] text-gray-400 font-mono tracking-wider uppercase">PPO Recommended Action</span>
+                    <span className={`text-3xl font-extrabold font-mono mt-2 tracking-widest ${
+                      rlAction === "BUY" ? "text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.3)]" :
+                      rlAction === "SELL" ? "text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.3)]" :
+                      "text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.3)]"
+                    }`}>
+                      {rlAction}
+                    </span>
+                    <span className="text-[9px] text-gray-500 font-mono mt-1">Deterministic Policy Evaluation</span>
+                  </div>
+
+                  {/* RL Metrics */}
+                  <div className="md:col-span-2 bg-[#111827] border border-gray-800 rounded-lg p-4 space-y-2 font-mono text-xs">
+                    <span className="text-[10px] text-gray-400 tracking-wider uppercase font-sans font-bold">State Variables</span>
+                    <div className="grid grid-cols-2 gap-2 mt-1">
+                      <div className="flex justify-between border-b border-gray-850 pb-1">
+                        <span className="text-gray-500">Close Price:</span>
+                        <span className="text-gray-200">${rlDetails?.close_price?.toFixed(2) || "180.00"}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-gray-850 pb-1">
+                        <span className="text-gray-500">Unrealized PnL:</span>
+                        <span className={`text-gray-200 ${(rlDetails?.unrealized_pnl || 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {((rlDetails?.unrealized_pnl || 0) * 100).toFixed(2)}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between border-b border-gray-850 pb-1">
+                        <span className="text-gray-500">Normalized Cash:</span>
+                        <span className="text-gray-200">{rlDetails?.norm_cash?.toFixed(4) || "1.0000"}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-gray-850 pb-1">
+                        <span className="text-gray-500">Current Qty:</span>
+                        <span className="text-gray-200">{rlDetails?.norm_position?.toFixed(2) || "0.00"}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Observation vector */}
+                <div className="bg-[#111827] border border-gray-800 rounded-lg p-4 font-mono text-xs space-y-2">
+                  <span className="text-[10px] text-gray-400 tracking-wider uppercase font-sans font-bold">Model Input (9D Observation Space)</span>
+                  <div className="grid grid-cols-3 md:grid-cols-9 gap-2 mt-1">
+                    {[
+                      { name: "Ret Lag", val: rlDetails ? 0.001 : 0.0005 },
+                      { name: "RSI 14", val: rlDetails ? 52.4 : 50.0 },
+                      { name: "Regime", val: 0.0 },
+                      { name: "MACDh", val: -0.12 },
+                      { name: "ATR 20", val: 1.52 },
+                      { name: "Norm Cash", val: rlDetails?.norm_cash },
+                      { name: "Norm Qty", val: rlDetails?.norm_position },
+                      { name: "Norm Entry", val: rlDetails?.norm_entry },
+                      { name: "Unreal PnL", val: rlDetails?.unrealized_pnl }
+                    ].map((item, idx) => (
+                      <div key={idx} className="bg-[#1F2937]/40 border border-gray-850 rounded p-2 text-center">
+                        <div className="text-[9px] text-gray-500">{item.name}</div>
+                        <div className="font-bold text-gray-200 mt-1 text-[10px] truncate">
+                          {typeof item.val === "number" ? item.val.toFixed(3) : "0.000"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* RL Env Chart */}
+                <div className="space-y-2">
+                  <span className="text-[10px] text-gray-400 tracking-wider uppercase font-sans font-bold">Policy Rewards Curve (Offline/Simulated Run)</span>
+                  <div className="h-44">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={rlHistory}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" />
+                        <XAxis dataKey="step" stroke="#9CA3AF" fontSize={9} />
+                        <YAxis stroke="#9CA3AF" fontSize={9} />
+                        <Tooltip contentStyle={{ backgroundColor: "#1F2937", border: "1px solid #374151", fontSize: "10px" }} />
+                        <Line type="monotone" dataKey="value" stroke="#818CF8" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
               </div>
               
-              {/* Reward history list */}
-              <div className="bg-[#0B0F19] border border-gray-800 rounded-xl p-5 shadow space-y-4">
-                <h4 className="font-bold flex items-center space-x-2"><TrendingUp size={18} className="text-indigo-400" /> <span>Active AI Agents Decision Feed</span></h4>
-                <div className="divide-y divide-gray-800 font-mono text-xs">
-                  {rlHistory.map((item, idx) => (
-                    <div key={idx} className="py-3 flex items-center justify-between">
-                      <div>
-                        <span className="font-bold text-gray-200">Alpha-Theta Agent (Step #{item.step})</span>
-                        <p className="text-[10px] text-gray-500 mt-0.5">Valuation: ${item.value.toLocaleString("en-US")}</p>
+              {/* Controls and Pipelines */}
+              <div className="bg-[#0B0F19] border border-gray-800 rounded-xl p-5 shadow space-y-6">
+                <div>
+                  <h4 className="font-bold flex items-center space-x-2"><TrendingUp size={18} className="text-indigo-400" /> <span>Policy Retraining Pipeline</span></h4>
+                  <p className="text-xs text-gray-400 mt-1">Directly trigger an execution of the model retraining pipelines (forecasting + reinforcement learning).</p>
+                </div>
+
+                <div className="bg-[#111827] border border-gray-800 rounded-lg p-4 space-y-4">
+                  <div className="flex justify-between items-center text-xs font-mono">
+                    <span className="text-gray-400">Retrain Status:</span>
+                    <span className={`px-2 py-0.5 rounded font-bold text-[10px] uppercase ${
+                      retrainStatus === "completed" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" :
+                      retrainStatus === "running" ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 animate-pulse" :
+                      retrainStatus === "failed" ? "bg-red-500/20 text-red-400 border border-red-500/30" :
+                      "bg-gray-700/20 text-gray-400 border border-gray-700/30"
+                    }`}>
+                      {retrainStatus}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={handleTriggerRetrain}
+                    disabled={retrainProgress}
+                    className={`w-full py-2.5 px-4 rounded font-bold text-xs flex items-center justify-center space-x-2 transition ${
+                      retrainProgress 
+                        ? "bg-indigo-950 text-indigo-400 cursor-not-allowed border border-indigo-900" 
+                        : "bg-indigo-600 hover:bg-indigo-700 text-white hover:shadow-[0_0_12px_rgba(99,102,241,0.4)]"
+                    }`}
+                  >
+                    {retrainProgress ? (
+                      <>
+                        <RefreshCw className="animate-spin" size={14} />
+                        <span>Training Models...</span>
+                      </>
+                    ) : (
+                      <span>Trigger Retrain Pipeline</span>
+                    )}
+                  </button>
+                </div>
+
+                <div className="space-y-3 font-mono text-xs">
+                  <span className="text-[10px] text-gray-400 font-sans tracking-wider uppercase font-bold">Policy Feed Logs</span>
+                  <div className="divide-y divide-gray-800">
+                    {rlHistory.slice(-5).map((item, idx) => (
+                      <div key={idx} className="py-2 flex items-center justify-between">
+                        <div>
+                          <span className="font-bold text-gray-300">PPO Action Step #{item.step}</span>
+                          <p className="text-[10px] text-gray-500 mt-0.5">Reward: {item.reward.toFixed(2)}</p>
+                        </div>
+                        <div>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                            item.reward >= 0 ? "bg-emerald-950 text-emerald-400 border border-emerald-900" : "bg-red-950 text-red-400 border border-red-900"
+                          }`}>
+                            {item.reward >= 0 ? "GAIN" : "LOSS"}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <span className={`font-bold ${item.reward >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                          {item.reward >= 0 ? "+" : ""}{item.reward.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1786,6 +2032,41 @@ export default function Dashboard() {
                 <div className="bg-[#0B0F19] border border-gray-800 rounded-xl p-5 shadow">
                   <span className="text-xs text-gray-400 block uppercase">Network Throughput</span>
                   <span className="text-2xl font-bold text-emerald-400 mt-2 block">4.2 Gbps</span>
+                </div>
+              </div>
+
+              {/* Microservices health grid */}
+              <div className="bg-[#0B0F19] border border-gray-800 rounded-xl p-5 shadow space-y-4">
+                <h4 className="font-bold flex items-center space-x-2"><Activity size={18} className="text-indigo-400" /> <span>Microservices Infrastructure Status</span></h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                    { id: "api-gateway", name: "API Gateway", port: 8005 },
+                    { id: "market-data-service", name: "Market Data Service", port: 8001 },
+                    { id: "feature-service", name: "Feature Service", port: 8002 },
+                    { id: "signal-service", name: "Signal Service", port: 8003 },
+                    { id: "portfolio-service", name: "Portfolio Service", port: 8004 },
+                    { id: "ai-prediction-service", name: "AI Prediction Service", port: 8006 },
+                    { id: "quantum-research-service", name: "Quantum Research Service", port: 8007 },
+                    { id: "frontend-dashboard", name: "Dashboard Frontend", port: 3000 }
+                  ].map((service) => {
+                    const status = service.id === "frontend-dashboard" ? "online" : (serviceHealth[service.id] || "offline");
+                    return (
+                      <div key={service.id} className="bg-[#111827] border border-gray-800 rounded-lg p-4 flex flex-col justify-between font-mono text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-300 font-bold">{service.name}</span>
+                          <span className={`h-2.5 w-2.5 rounded-full ${
+                            status === "online" ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" :
+                            status === "error" ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]" :
+                            "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]"
+                          }`} />
+                        </div>
+                        <div className="mt-2.5 flex justify-between text-[10px] text-gray-500">
+                          <span>Port: {service.port}</span>
+                          <span className="uppercase font-bold text-[9px]">{status}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 

@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Any, Optional
@@ -363,6 +364,11 @@ class ParallelBacktester:
         if num_workers <= 1:
             # Fallback to sequential for single core or single task
             results = [run_single_backtest(t) for t in tasks]
+        elif os.getenv("PYTEST_CURRENT_TEST"):
+            # Avoid multiprocessing hangs in pytest on Windows/macOS spawn
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=num_workers) as executor:
+                results = list(executor.map(run_single_backtest, tasks))
         else:
             with multiprocessing.Pool(processes=num_workers) as pool:
                 results = pool.map(run_single_backtest, tasks)

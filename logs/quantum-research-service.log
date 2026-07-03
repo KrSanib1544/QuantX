@@ -1,0 +1,9 @@
+Could not connect to PostgreSQL (postgresql://quantx_user:quantx_password@localhost:5432/quantx_db). Falling back to SQLite. Error: (psycopg2.OperationalError) connection to server at "localhost" (::1), port 5432 failed: timeout expired
+connection to server at "localhost" (127.0.0.1), port 5432 failed: timeout expired
+
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+INFO:     Started server process [5100]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8007 (Press CTRL+C to quit)
+INFO:     127.0.0.1:53569 - "GET /health HTTP/1.1" 200 OK

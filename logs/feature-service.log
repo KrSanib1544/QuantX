@@ -1,0 +1,11 @@
+2026-07-02 22:14:01,762 [WARNING] feature-service.store: Failed to connect to Redis at localhost:6379. Running in Mock memory mode. Error: Error 10061 connecting to localhost:6379. No connection could be made because the target machine actively refused it.
+2026-07-02 22:14:01,767 [INFO] kafka.conn: <BrokerConnection node_id=bootstrap-0 host=localhost:9092 <connecting> [IPv6 ('::1', 9092, 0, 0)]>: connecting to localhost:9092 [('::1', 9092, 0, 0) IPv6]
+2026-07-02 22:14:01,768 [INFO] kafka.conn: Probing node bootstrap-0 broker version
+2026-07-02 22:14:03,776 [WARNING] feature-service: Could not connect Kafka Producer. Running in mock. Error: NoBrokersAvailable
+INFO:     Started server process [524]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8002 (Press CTRL+C to quit)
+2026-07-02 22:14:03,914 [INFO] kafka.conn: <BrokerConnection node_id=bootstrap-0 host=localhost:9092 <connecting> [IPv6 ('::1', 9092, 0, 0)]>: connecting to localhost:9092 [('::1', 9092, 0, 0) IPv6]
+2026-07-02 22:14:03,914 [INFO] kafka.conn: Probing node bootstrap-0 broker version
+2026-07-02 22:14:05,929 [WARNING] feature-service: Kafka Consumer connection error: NoBrokersAvailable. Ingestion will run via HTTP mocks.
