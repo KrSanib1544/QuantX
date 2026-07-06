@@ -211,6 +211,12 @@ const MOCK_RL_HISTORY = [
 
 // Helper for dynamic API Gateway host resolution (allows mobile access on local network)
 const getApiUrl = (path: string): string => {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl) {
+    // Ensure no trailing slash on the base URL to prevent double slashes
+    const cleanBase = envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
+    return `${cleanBase}${path}`;
+  }
   if (typeof window !== "undefined") {
     return `${window.location.protocol}//${window.location.hostname}:8005${path}`;
   }
@@ -218,6 +224,13 @@ const getApiUrl = (path: string): string => {
 };
 
 const getWsUrl = (path: string): string => {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl) {
+    const cleanBase = envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
+    const wsProtocol = cleanBase.startsWith("https:") ? "wss:" : "ws:";
+    const host = cleanBase.replace(/^https?:\/\//, "");
+    return `${wsProtocol}//${host}${path}`;
+  }
   if (typeof window !== "undefined") {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     return `${protocol}//${window.location.hostname}:8005${path}`;
