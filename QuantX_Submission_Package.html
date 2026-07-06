@@ -205,26 +205,35 @@
         /* Print optimization */
         @media print {
             body {
-                background-color: #ffffff;
-                color: #000000;
+                background-color: #ffffff !important;
+                color: #000000 !important;
             }
             .container {
                 max-width: 100%;
                 padding: 0;
             }
             h1, h2, h3 {
-                color: #000000;
+                color: #000000 !important;
             }
             .subtitle {
-                color: #555555;
+                color: #555555 !important;
             }
             .meta-item {
-                border: 1px solid #ccc;
-                background-color: #f9f9f9;
+                border: 1px solid #ccc !important;
+                background-color: #f9f9f9 !important;
+            }
+            .meta-item-value {
+                color: #000000 !important;
+            }
+            .meta-item-value a {
+                color: #0969da !important;
+            }
+            .meta-item-label {
+                color: #555555 !important;
             }
             .diagram-box {
-                border: 1px solid #ccc;
-                background-color: #ffffff;
+                border: 1px solid #ccc !important;
+                background-color: #ffffff !important;
                 page-break-inside: avoid;
             }
             section {
