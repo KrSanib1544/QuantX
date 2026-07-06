@@ -372,6 +372,8 @@ export default function Dashboard() {
 
   // Quantum Research State
   const [quantumKernel, setQuantumKernel] = useState<string>("RBF-Quantum-Enhanced");
+  const [quantumTarget, setQuantumTarget] = useState<string>("Sharpe Maximization");
+  const [quantumExperiment, setQuantumExperiment] = useState<string>("QA-Portfolio-Optimization-v4.2");
   const [quantumRunning, setQuantumRunning] = useState<boolean>(false);
   const [quantumResults, setQuantumResults] = useState<any>(null);
   const [quantumPromotedMsg, setQuantumPromotedMsg] = useState<string>("");
@@ -1127,8 +1129,8 @@ def handle_data(context, data):
           "Authorization": `Bearer ${token}` 
         },
         body: JSON.stringify({
-          name: "QA-Portfolio-Optimization-v4.2",
-          params: { symbols: ["AAPL", "MSFT", "TSLA", "BTC-USD"], target: "Sharpe Maximization", kernel: quantumKernel }
+          name: quantumExperiment,
+          params: { symbols: ["AAPL", "MSFT", "TSLA", "BTC-USD"], target: quantumTarget, kernel: quantumKernel }
         })
       });
       const createData = await createRes.json();
@@ -3836,11 +3838,18 @@ def handle_data(context, data):
               <div className="bg-[#0B0F19] border border-gray-800 rounded-xl p-4 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1 font-mono text-xs">
                   {/* Selected Experiment */}
-                  <div className="bg-[#111827] border border-gray-850 rounded-lg px-3 py-2 flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <span className="text-[8px] text-gray-500 font-extrabold uppercase tracking-widest">ACTIVE EXPERIMENT</span>
-                      <span className="text-white font-extrabold mt-1">QA-Portfolio-Optimization-v4.2</span>
-                    </div>
+                  <div className="bg-[#111827] border border-gray-850 rounded-lg px-3 py-2 flex flex-col">
+                    <span className="text-[8px] text-gray-500 font-extrabold uppercase tracking-widest">ACTIVE EXPERIMENT</span>
+                    <select 
+                      value={quantumExperiment}
+                      onChange={(e) => setQuantumExperiment(e.target.value)}
+                      className="bg-transparent text-white font-extrabold outline-none mt-1 select-none cursor-pointer"
+                    >
+                      <option value="QA-Portfolio-Optimization-v4.2" className="bg-[#111827]">QA-Portfolio-Optimization-v4.2</option>
+                      <option value="QA-Asset-Pricing-v1.0" className="bg-[#111827]">QA-Asset-Pricing-v1.0</option>
+                      <option value="QA-Factor-Analysis-v3.1" className="bg-[#111827]">QA-Factor-Analysis-v3.1</option>
+                      <option value="QA-Risk-Parity-v2.0" className="bg-[#111827]">QA-Risk-Parity-v2.0</option>
+                    </select>
                   </div>
                   {/* Quantum Kernel Selection */}
                   <div className="bg-[#111827] border border-gray-850 rounded-lg px-3 py-2 flex flex-col">
@@ -3858,10 +3867,14 @@ def handle_data(context, data):
                   {/* Target Function */}
                   <div className="bg-[#111827] border border-gray-850 rounded-lg px-3 py-2 flex flex-col">
                     <span className="text-[8px] text-gray-500 font-extrabold uppercase tracking-widest">TARGET FUNCTION</span>
-                    <select className="bg-transparent text-white font-extrabold outline-none mt-1 cursor-pointer">
-                      <option className="bg-[#111827]">Sharpe Maximization</option>
-                      <option className="bg-[#111827]">Volatility Minimization</option>
-                      <option className="bg-[#111827]">Feature Importance Selection</option>
+                    <select 
+                      value={quantumTarget}
+                      onChange={(e) => setQuantumTarget(e.target.value)}
+                      className="bg-transparent text-white font-extrabold outline-none mt-1 cursor-pointer"
+                    >
+                      <option value="Sharpe Maximization" className="bg-[#111827]">Sharpe Maximization</option>
+                      <option value="Volatility Minimization" className="bg-[#111827]">Volatility Minimization</option>
+                      <option value="Feature Importance Selection" className="bg-[#111827]">Feature Importance Selection</option>
                     </select>
                   </div>
                 </div>

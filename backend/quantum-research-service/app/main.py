@@ -91,13 +91,15 @@ def run_experiment(exp_id: str):
         params = json.loads(exp[1]) if isinstance(exp[1], str) else exp[1]
     else:
         name = "QA-Portfolio-Optimization-v4.2"
-        params = {"symbols": ["AAPL", "MSFT", "TSLA", "BTC-USD"], "target": "Sharpe Maximization"}
+        params = {"symbols": ["AAPL", "MSFT", "TSLA", "BTC-USD"], "target": "Sharpe Maximization", "kernel": "Linear-Quantum"}
         
     symbols = params.get("symbols", ["AAPL", "MSFT", "TSLA", "BTC-USD"])
+    target = params.get("target", "Sharpe Maximization")
+    kernel = params.get("kernel", "Linear-Quantum")
     
     # Run optimizer & feature selection
     try:
-        opt_results = solver.optimize_portfolio(symbols)
+        opt_results = solver.optimize_portfolio(symbols, target_function=target, kernel=kernel)
         feat_results = solver.select_features()
         
         results = {
