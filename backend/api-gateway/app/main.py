@@ -231,24 +231,73 @@ def startup_event():
         else:
             portfolio_id = port[0]
 
-        # 2. Prepopulate assets (if empty, though market-data-service handles this)
-        assets = conn.execute(text("SELECT id, symbol FROM assets")).fetchall()
-        if not assets:
-            # Let's insert default assets to match
-            default_assets = [
-                {"id": str(uuid.uuid4()), "symbol": "AAPL", "name": "Apple Inc.", "sector": "Technology"},
-                {"id": str(uuid.uuid4()), "symbol": "MSFT", "name": "Microsoft Corp.", "sector": "Technology"},
-                {"id": str(uuid.uuid4()), "symbol": "TSLA", "name": "Tesla Inc.", "sector": "Automotive"},
-                {"id": str(uuid.uuid4()), "symbol": "BTC-USD", "name": "Bitcoin USD", "sector": "Cryptocurrency"}
-            ]
-            for asset in default_assets:
+        # 2. Prepopulate assets and historical prices
+        default_assets = [
+            {"symbol": "AAPL", "name": "Apple Inc.", "sector": "Technology", "class": "equity_us", "price": 185.10},
+            {"symbol": "MSFT", "name": "Microsoft Corp.", "sector": "Technology", "class": "equity_us", "price": 372.30},
+            {"symbol": "TSLA", "name": "Tesla Inc.", "sector": "Automotive", "class": "equity_us", "price": 218.40},
+            {"symbol": "NVDA", "name": "NVIDIA Corp.", "sector": "Technology", "class": "equity_us", "price": 875.12},
+            {"symbol": "AMZN", "name": "Amazon.com Inc.", "sector": "Consumer Cyclical", "class": "equity_us", "price": 145.50},
+            {"symbol": "GOOG", "name": "Alphabet Inc.", "sector": "Technology", "class": "equity_us", "price": 138.20},
+            {"symbol": "FB", "name": "Meta Platforms Inc.", "sector": "Technology", "class": "equity_us", "price": 355.00},
+            {"symbol": "AMD", "name": "Advanced Micro Devices", "sector": "Technology", "class": "equity_us", "price": 172.50},
+            {"symbol": "INTC", "name": "Intel Corp.", "sector": "Technology", "class": "equity_us", "price": 43.10},
+            {"symbol": "NFLX", "name": "Netflix Inc.", "sector": "Communication Services", "class": "equity_us", "price": 485.20},
+            {"symbol": "BTC-USD", "name": "Bitcoin USD", "sector": "Cryptocurrency", "class": "crypto", "price": 61400.00},
+            {"symbol": "ETH-USD", "name": "Ethereum USD", "sector": "Cryptocurrency", "class": "crypto", "price": 3380.15},
+            {"symbol": "RELIANCE.NS", "name": "Reliance Industries", "sector": "Energy", "class": "equity_in", "price": 2912.40},
+            {"symbol": "TCS.NS", "name": "Tata Consultancy Services", "sector": "Technology", "class": "equity_in", "price": 3812.50},
+            {"symbol": "INFY.NS", "name": "Infosys Ltd.", "sector": "Technology", "class": "equity_in", "price": 1540.30},
+            {"symbol": "HDFCBANK.NS", "name": "HDFC Bank Ltd.", "sector": "Financial Services", "class": "equity_in", "price": 1610.20},
+            {"symbol": "ICICIBANK.NS", "name": "ICICI Bank Ltd.", "sector": "Financial Services", "class": "equity_in", "price": 980.50},
+            {"symbol": "SBIN.NS", "name": "State Bank of India", "sector": "Financial Services", "class": "equity_in", "price": 620.10},
+            {"symbol": "ITC.NS", "name": "ITC Ltd.", "sector": "Consumer Goods", "class": "equity_in", "price": 445.80},
+        ]
+        
+        for a in default_assets:
+            row = conn.execute(text("SELECT id FROM assets WHERE symbol = :sym"), {"sym": a["symbol"]}).fetchone()
+            if not row:
+                asset_id = str(uuid.uuid4())
                 conn.execute(text("""
-                    INSERT INTO assets (id, symbol, name, sector)
-                    VALUES (:id, :symbol, :name, :sector)
-                """), asset)
-            logger.info("Prepopulated default assets in gateway.")
-            assets = conn.execute(text("SELECT id, symbol FROM assets")).fetchall()
-
+                    INSERT INTO assets (id, symbol, name, asset_class, sector, is_active)
+                    VALUES (:id, :symbol, :name, :asset_class, :sector, 1)
+                """), {"id": asset_id, "symbol": a["symbol"], "name": a["name"], "asset_class": a["class"], "sector": a["sector"]})
+                logger.info(f"Seeded asset: {a['symbol']}")
+            else:
+                asset_id = row[0]
+                
+            # Seed prices if empty
+            p_exists = conn.execute(text("SELECT 1 FROM prices WHERE asset_id = :id LIMIT 1"), {"id": asset_id}).fetchone()
+            if not p_exists:
+                base_price = a["price"]
+                today = datetime.datetime.utcnow().date()
+                for day_idx in range(30, -1, -1):
+                    bar_date = today - datetime.timedelta(days=day_idx)
+                    change = (random.random() - 0.48) * 0.02
+                    close_p = base_price * (1.0 + change)
+                    open_p = base_price
+                    high_p = max(open_p, close_p) * (1.0 + random.random() * 0.005)
+                    low_p = min(open_p, close_p) * (1.0 - random.random() * 0.005)
+                    vol = random.randint(100000, 5000000)
+                    
+                    conn.execute(text("""
+                        INSERT INTO prices (id, asset_id, timestamp, open, high, low, close, volume, interval_type)
+                        VALUES (:id, :asset_id, :ts, :open, :high, :low, :close, :vol, '1d')
+                    """), {
+                        "id": str(uuid.uuid4()),
+                        "asset_id": asset_id,
+                        "ts": datetime.datetime.combine(bar_date, datetime.time(16, 0)),
+                        "open": open_p,
+                        "high": high_p,
+                        "low": low_p,
+                        "close": close_p,
+                        "vol": vol
+                    })
+                    base_price = close_p
+                logger.info(f"Seeded 30 daily prices for: {a['symbol']}")
+                
+        # Re-fetch assets for mapping
+        assets = conn.execute(text("SELECT id, symbol FROM assets")).fetchall()
         asset_map = {row[1]: row[0] for row in assets}
 
         # 3. Prepopulate positions if empty
