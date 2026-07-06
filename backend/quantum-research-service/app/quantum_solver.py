@@ -7,7 +7,10 @@ from typing import Dict, Any, List, Tuple
 from sqlalchemy import text
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from .database import engine
+try:
+    from .database import engine
+except (ImportError, ValueError):
+    from database import engine
 
 logger = logging.getLogger("quantum-research-service.quantum_solver")
 

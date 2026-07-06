@@ -50,8 +50,8 @@ from app.optimizer import PortfolioOptimizer
 sys.path.pop(0)
 
 # 3. Import QuantumSolver from quantum-research-service
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../quantum-research-service')))
-from app.quantum_solver import QuantumSolver
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../quantum-research-service/app')))
+from quantum_solver import QuantumSolver
 sys.path.pop(0)
 
 # Restore the original api-gateway app module
