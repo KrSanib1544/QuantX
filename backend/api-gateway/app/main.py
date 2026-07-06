@@ -1370,6 +1370,31 @@ def trigger_backtest(req: BacktestRequest, user: dict = Depends(get_current_user
     results["dates"] = [str(d) for d in results["dates"]]
     return results
 
+class SaveStrategyRequest(BaseModel):
+    name: str
+    code: str
+
+@app.post("/api/backtest/save-strategy")
+def save_strategy(req: SaveStrategyRequest, user: dict = Depends(get_current_user)):
+    """
+    Saves a strategy to the database.
+    """
+    import uuid
+    strat_id = str(uuid.uuid4())
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("""
+                    INSERT INTO saved_strategies (id, name, code)
+                    VALUES (:id, :name, :code)
+                """),
+                {"id": strat_id, "name": req.name, "code": req.code}
+            )
+        return {"status": "success", "id": strat_id, "message": "Strategy saved successfully"}
+    except Exception as e:
+        logger.error(f"Failed to save strategy: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save strategy: {e}")
+
 # ==================== AI PREDICTIONS PORTAL ====================
 @app.get("/api/predictions/{symbol}")
 def get_prediction_gateway(symbol: str, user: dict = Depends(get_current_user)):

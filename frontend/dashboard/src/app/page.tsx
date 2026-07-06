@@ -377,6 +377,31 @@ export default function Dashboard() {
   const [quantumRunning, setQuantumRunning] = useState<boolean>(false);
   const [quantumResults, setQuantumResults] = useState<any>(null);
   const [quantumPromotedMsg, setQuantumPromotedMsg] = useState<string>("");
+  const [savingStrategy, setSavingStrategy] = useState<boolean>(false);
+
+  // Risk Management State
+  const [recalculatingVar, setRecalculatingVar] = useState<boolean>(false);
+  const [riskStats, setRiskStats] = useState<any[]>([
+    { title: "PORTFOLIO VAR (99%)", val: "$142,502", change: "-2.4%", up: false },
+    { title: "CURRENT LEVERAGE", val: "1.42x", change: "+0.1x", up: true },
+    { title: "MAX DRAWDOWN (30D)", val: "4.12%", change: "-0.8%", up: false },
+    { title: "SYSTEMIC BETA", val: "1.08", change: "+0.05", up: true }
+  ]);
+  const [riskPositions, setRiskPositions] = useState<any[]>([
+    { sym: "NVDA", sector: "Technology", wt: "12.4%", var: "$18.2k", mctr: "4.2%", profile: "HIGH", color: "text-red-400 border-red-500/20 bg-red-500/5" },
+    { sym: "TSLA", sector: "Consumer Disc.", wt: "8.2%", var: "$14.1k", mctr: "3.8%", profile: "HIGH", color: "text-red-400 border-red-500/20 bg-red-500/5" },
+    { sym: "AAPL", sector: "Technology", wt: "7.5%", var: "$9.4k", mctr: "1.2%", profile: "NORMAL", color: "text-gray-400 border-gray-800" },
+    { sym: "JPM", sector: "Financials", wt: "6.1%", var: "$5.2k", mctr: "0.8%", profile: "NORMAL", color: "text-gray-400 border-gray-800" },
+    { sym: "XOM", sector: "Energy", wt: "4.3%", var: "$3.1k", mctr: "-0.4%", profile: "HEDGED", color: "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" }
+  ]);
+  const [breachFeed, setBreachFeed] = useState<any[]>([
+    { time: "14 mins ago", lvl: "CRITICAL", msg: "Correlation between BTC and NASDAQ-100 exceeded 0.85.", color: "text-red-400 bg-red-500/5 border-red-500/15" },
+    { time: "1 hour ago", lvl: "WARNING", msg: "Concentration limit reached for Technology sector (40%).", color: "text-yellow-400 bg-yellow-500/5 border-yellow-500/15" },
+    { time: "3 hours ago", lvl: "INFO", msg: "Hedge position in SPY Puts updated successfully.", color: "text-gray-400 border-gray-800" }
+  ]);
+  const [optimalUnitSize, setOptimalUnitSize] = useState<number>(42600);
+  const [volStop, setVolStop] = useState<number>(16760);
+  const [volStopPct, setVolStopPct] = useState<number>(-2.4);
 
   // ==================== NEW DESIGN STATES ====================
   // Dashboard tab states
@@ -1116,6 +1141,33 @@ def handle_data(context, data):
     }
   };
 
+  const handleSaveStrategy = async () => {
+    setSavingStrategy(true);
+    try {
+      const res = await fetch(getApiUrl("/api/backtest/save-strategy"), {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}` 
+        },
+        body: JSON.stringify({ 
+          name: `Mean_Reversion_${targetAsset}_v2`, 
+          code: backtestCode 
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast("Strategy saved Successfully", "success");
+      } else {
+        showToast(data.detail || "Failed to save strategy", "error");
+      }
+    } catch (err) {
+      showToast("Connection error while saving strategy", "error");
+    } finally {
+      setSavingStrategy(false);
+    }
+  };
+
   const handleRunQuantumExperiment = async () => {
     setQuantumRunning(true);
     setQuantumResults(null);
@@ -1171,6 +1223,133 @@ def handle_data(context, data):
       setQuantumPromotedMsg("Failed to promote strategy.");
     }
   };
+
+  const fetchRiskData = async () => {
+    try {
+      // 1. Fetch risk summary
+      const summaryRes = await fetch(getApiUrl("/api/risk/summary"), {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (summaryRes.ok) {
+        const summary = await summaryRes.json();
+        setRiskStats([
+          { title: "PORTFOLIO VAR (99%)", val: `$${Math.round(summary.portfolio_var_99).toLocaleString()}`, change: `${summary.var_pct_change > 0 ? "+" : ""}${summary.var_pct_change}%`, up: summary.var_pct_change > 0 },
+          { title: "CURRENT LEVERAGE", val: `${summary.current_leverage}x`, change: `${summary.leverage_change > 0 ? "+" : ""}${summary.leverage_change}x`, up: summary.leverage_change > 0 },
+          { title: "MAX DRAWDOWN (30D)", val: `${summary.max_drawdown_30d}%`, change: `${summary.max_drawdown_change > 0 ? "+" : ""}${summary.max_drawdown_change}%`, up: summary.max_drawdown_change > 0 },
+          { title: "SYSTEMIC BETA", val: `${summary.systemic_beta}`, change: `${summary.beta_change > 0 ? "+" : ""}${summary.beta_change}`, up: summary.beta_change > 0 }
+        ]);
+      }
+
+      // 2. Fetch risk positions
+      const posRes = await fetch(getApiUrl("/api/risk/positions"), {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (posRes.ok) {
+        const positions = await posRes.json();
+        const formattedPos = positions.map((p: any) => {
+          let color = "text-gray-400 border-gray-800";
+          if (p.risk_profile.toUpperCase() === "HIGH") {
+            color = "text-red-400 border-red-500/20 bg-red-500/5";
+          } else if (p.risk_profile.toUpperCase() === "HEDGED") {
+            color = "text-emerald-400 border-emerald-500/20 bg-emerald-500/5";
+          }
+          return {
+            sym: p.symbol,
+            sector: p.sector,
+            wt: `${p.weight}%`,
+            var: `$${Math.round(p.var_contribution).toLocaleString()}`,
+            mctr: `${p.mctr_pct}%`,
+            profile: p.risk_profile.toUpperCase(),
+            color
+          };
+        });
+        setRiskPositions(formattedPos);
+      }
+
+      // 3. Fetch breach feed
+      const breachRes = await fetch(getApiUrl("/api/risk/breach-feed"), {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (breachRes.ok) {
+        const breaches = await breachRes.json();
+        const formattedBreaches = breaches.map((b: any) => {
+          let color = "text-gray-400 border-gray-800";
+          if (b.severity === "critical") {
+            color = "text-red-400 bg-red-500/5 border-red-500/15";
+          } else if (b.severity === "warning") {
+            color = "text-yellow-400 bg-yellow-500/5 border-yellow-500/15";
+          }
+          return {
+            time: b.time,
+            lvl: b.severity.toUpperCase(),
+            msg: b.message,
+            color
+          };
+        });
+        setBreachFeed(formattedBreaches);
+      }
+    } catch (err) {
+      console.error("Failed to fetch risk data:", err);
+    }
+  };
+
+  const fetchSizingData = async () => {
+    try {
+      const res = await fetch(getApiUrl("/api/risk/sizing"), {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}` 
+        },
+        body: JSON.stringify({ aggression_factor: aggressionFactor })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setOptimalUnitSize(data.optimal_unit_size);
+        setVolStop(data.vol_adj_stop);
+        setVolStopPct(data.vol_adj_stop_pct);
+      }
+    } catch (err) {
+      console.error("Failed to fetch sizing data:", err);
+    }
+  };
+
+  const handleRecalculateVaR = async () => {
+    setRecalculatingVar(true);
+    showToast("Re-running Value-at-Risk (VaR) simulations...", "info");
+    try {
+      await fetchRiskData();
+      showToast("VaR metrics recalculated successfully!", "success");
+    } catch (err) {
+      showToast("Failed to recalculate VaR.", "error");
+    } finally {
+      setRecalculatingVar(false);
+    }
+  };
+
+  const handleExportRiskReport = async () => {
+    showToast("Preparing risk report PDF preview...", "info");
+    try {
+      await exportReportToPDF("risk-management-tab", `QuantX_Risk_Report_${new Date().toISOString().slice(0,10)}.pdf`);
+      showToast("Risk report generated successfully!", "success");
+    } catch (err) {
+      showToast("Failed to generate risk report.", "error");
+    }
+  };
+
+  // Fetch risk data on activeTab change
+  useEffect(() => {
+    if (activeTab === "risk") {
+      fetchRiskData();
+    }
+  }, [activeTab]);
+
+  // Recalculate sizing on aggressionFactor changes
+  useEffect(() => {
+    if (activeTab === "risk") {
+      fetchSizingData();
+    }
+  }, [aggressionFactor, activeTab]);
 
   // Recharts custom colors for Pie charts
   const COLORS = ["#10B981", "#3B82F6", "#F59E0B", "#818CF8", "#EF4444"];
@@ -4128,11 +4307,13 @@ def handle_data(context, data):
                 </div>
                 
                 <div className="flex space-x-2">
-                  <button className="px-3 py-1.5 border border-gray-800 rounded bg-[#111827] text-xs font-bold text-gray-400 hover:text-white transition">
-                    Save Strategy
-                  </button>
-                  <button className="px-3 py-1.5 border border-gray-800 rounded bg-[#111827] text-xs font-bold text-gray-400 hover:text-white transition">
-                    Share
+                  <button 
+                    onClick={handleSaveStrategy}
+                    disabled={savingStrategy}
+                    className="px-3 py-1.5 border border-gray-800 rounded bg-[#111827] text-xs font-bold text-gray-400 hover:text-white transition cursor-pointer disabled:opacity-50 flex items-center space-x-1.5"
+                  >
+                    {savingStrategy && <RefreshCw size={10} className="animate-spin" />}
+                    <span>{savingStrategy ? "Saving..." : "Save Strategy"}</span>
                   </button>
                   <button 
                     onClick={handleRunBacktest}
@@ -5023,7 +5204,7 @@ def handle_data(context, data):
 
           {/* 7. RISK MANAGEMENT */}
           {activeTab === "risk" && (
-            <div className="space-y-6 animate-fadeIn text-sm">
+            <div id="risk-management-tab" className="space-y-6 animate-fadeIn text-sm">
               {/* Header section */}
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-850 pb-4">
                 <div>
@@ -5032,11 +5213,18 @@ def handle_data(context, data):
                   <p className="text-[11px] text-gray-500 mt-1">Institutional-grade exposure monitoring and predictive stress testing.</p>
                 </div>
                 <div className="flex space-x-2 mt-4 md:mt-0 font-sans font-bold">
-                  <button className="px-3.5 py-2 border border-gray-800 rounded-lg bg-[#111827] text-xs text-gray-300 hover:text-white hover:border-gray-700 transition flex items-center space-x-1.5">
-                    <RefreshCw size={12} />
-                    <span>Recalculate VaR</span>
+                  <button 
+                    onClick={handleRecalculateVaR}
+                    disabled={recalculatingVar}
+                    className="px-3.5 py-2 border border-gray-800 rounded-lg bg-[#111827] text-xs text-gray-300 hover:text-white hover:border-gray-700 transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw size={12} className={recalculatingVar ? "animate-spin" : ""} />
+                    <span>{recalculatingVar ? "Calculating..." : "Recalculate VaR"}</span>
                   </button>
-                  <button className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-black rounded-lg text-xs transition flex items-center space-x-1.5 cursor-pointer">
+                  <button 
+                    onClick={handleExportRiskReport}
+                    className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-black rounded-lg text-xs transition flex items-center space-x-1.5 cursor-pointer"
+                  >
                     <FileText size={12} />
                     <span>Export Risk Report</span>
                   </button>
@@ -5045,12 +5233,7 @@ def handle_data(context, data):
 
               {/* 4 Stats Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 font-mono">
-                {[
-                  { title: "PORTFOLIO VAR (99%)", val: "$142,502", change: "-2.4%", up: false },
-                  { title: "CURRENT LEVERAGE", val: "1.42x", change: "+0.1x", up: true },
-                  { title: "MAX DRAWDOWN (30D)", val: "4.12%", change: "-0.8%", up: false },
-                  { title: "SYSTEMIC BETA", val: "1.08", change: "+0.05", up: true }
-                ].map((stat, i) => (
+                {riskStats.map((stat, i) => (
                   <div key={i} className="bg-[#0B0F19] border border-gray-800 rounded-xl p-4">
                     <span className="text-[9px] text-gray-500 font-extrabold uppercase tracking-widest block">{stat.title}</span>
                     <div className="flex justify-between items-baseline mt-2">
@@ -5195,13 +5378,7 @@ def handle_data(context, data):
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-855 font-mono text-gray-300">
-                          {[
-                            { sym: "NVDA", sector: "Technology", wt: "12.4%", var: "$18.2k", mctr: "4.2%", profile: "HIGH", color: "text-red-400 border-red-500/20 bg-red-500/5" },
-                            { sym: "TSLA", sector: "Consumer Disc.", wt: "8.2%", var: "$14.1k", mctr: "3.8%", profile: "HIGH", color: "text-red-400 border-red-500/20 bg-red-500/5" },
-                            { sym: "AAPL", sector: "Technology", wt: "7.5%", var: "$9.4k", mctr: "1.2%", profile: "NORMAL", color: "text-gray-400 border-gray-800" },
-                            { sym: "JPM", sector: "Financials", wt: "6.1%", var: "$5.2k", mctr: "0.8%", profile: "NORMAL", color: "text-gray-400 border-gray-800" },
-                            { sym: "XOM", sector: "Energy", wt: "4.3%", var: "$3.1k", mctr: "-0.4%", profile: "HEDGED", color: "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" }
-                          ].map((pos, idx) => (
+                          {riskPositions.map((pos, idx) => (
                             <tr key={idx} className="hover:bg-gray-800/20">
                               <td className="py-3 font-sans font-bold text-white">{pos.sym}</td>
                               <td className="py-3 text-gray-400">{pos.sector}</td>
@@ -5251,11 +5428,15 @@ def handle_data(context, data):
                     <div className="bg-[#111827] border border-gray-850 p-4 rounded-xl space-y-3 font-mono text-xs mt-2">
                       <div className="flex justify-between">
                         <span className="text-gray-500">Optimal Unit Size:</span>
-                        <span className="text-white font-extrabold">${(30000 * aggressionFactor).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        <span className="text-white font-extrabold">
+                          ${optimalUnitSize ? optimalUnitSize.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : (30000 * aggressionFactor).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Volatility Adj. Stop:</span>
-                        <span className="text-red-400 font-extrabold">${(11800 * aggressionFactor).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (-2.4%)</span>
+                        <span className="text-red-400 font-extrabold">
+                          ${volStop ? volStop.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : (11800 * aggressionFactor).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({volStopPct ? (volStopPct >= 0 ? "+" : "") + volStopPct.toFixed(1) : "-2.4"}%)
+                        </span>
                       </div>
                     </div>
 
@@ -5269,11 +5450,7 @@ def handle_data(context, data):
                     <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest block font-mono">Real-time Breach Feed</span>
                     
                     <div className="space-y-3.5 divide-y divide-gray-850/50">
-                      {[
-                        { time: "14 mins ago", lvl: "CRITICAL", msg: "Correlation between BTC and NASDAQ-100 exceeded 0.85.", color: "text-red-400 bg-red-500/5 border-red-500/15" },
-                        { time: "1 hour ago", lvl: "WARNING", msg: "Concentration limit reached for Technology sector (40%).", color: "text-yellow-400 bg-yellow-500/5 border-yellow-500/15" },
-                        { time: "3 hours ago", lvl: "INFO", msg: "Hedge position in SPY Puts updated successfully.", color: "text-gray-400 border-gray-800" }
-                      ].map((log, i) => (
+                      {breachFeed.map((log, i) => (
                         <div key={i} className={`text-xs ${i > 0 ? "pt-3.5" : ""}`}>
                           <div className="flex justify-between items-center text-[10px] font-mono text-gray-500">
                             <span>{log.time}</span>
