@@ -4595,9 +4595,6 @@ def handle_data(context, data):
                       >
                         Deploy to AI Agent
                       </button>
-                      <button className="px-3 py-1.5 bg-[#111827] border border-gray-800 text-gray-400 hover:text-white rounded-lg font-bold text-xs transition">
-                        Promote to Paper
-                      </button>
                       <button 
                         onClick={() => window.print()}
                         className="px-3 py-1.5 bg-[#111827] border border-gray-800 text-gray-400 hover:text-white rounded-lg font-bold text-xs transition"
