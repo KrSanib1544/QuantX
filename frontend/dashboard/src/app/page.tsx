@@ -1999,7 +1999,7 @@ def handle_data(context, data):
   }
 
   return (
-    <div className="flex min-h-screen bg-[#070A13] text-[#F3F4F6] font-sans">
+    <div className="flex h-screen overflow-hidden bg-[#070A13] text-[#F3F4F6] font-sans">
       {/* ── Global Toast Overlay ──────────────────────────────────────────── */}
       {toast && (
         <div
