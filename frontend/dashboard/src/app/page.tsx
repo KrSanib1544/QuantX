@@ -1258,7 +1258,7 @@ def handle_data(context, data):
             {/* Hero Section */}
             <div className="max-w-4xl mx-auto text-center px-6 flex flex-col items-center relative z-10 mt-8">
               <h1 className="text-4xl md:text-6xl font-black text-white leading-tight tracking-tight uppercase">
-                Trade Smarter<br /><span className="text-[#10B981]">Powered by AI</span>
+                Quantitative Edge<br /><span className="text-[#10B981]">Powered by AI</span>
               </h1>
               <p className="text-sm md:text-base text-gray-400 mt-5 max-w-2xl font-medium">
                 QuantX is an AI-powered quantitative paper trading platform — combining machine learning forecasting, reinforcement learning agents, portfolio optimization, risk analytics, and backtesting in one unified terminal.
