@@ -1,6 +1,10 @@
 # 🚀 QuantX: AI-Powered Quantitative Investment & Portfolio Orchestration Platform
 
-QuantX is a production-grade, microservice-based quantitative trading, backtesting, and portfolio optimization platform. It combines deep learning forecasting models, reinforcement learning decision engines, real-world data ingestion pipelines, and a high-fidelity, real-time React/Next.js dashboard built with dark-mode glassmorphism aesthetics.
+QuantX is a production-grade, microservice-based quantitative trading, backtesting, and portfolio optimization platform. It combines deep learning forecasting models (LSTMs, GRUs, Transformers), reinforcement learning decision engines (PPO), real-world data ingestion pipelines, and a high-fidelity, real-time React/Next.js dashboard built with dark-mode glassmorphism aesthetics.
+
+[![Next.js Frontend](https://img.shields.io/badge/Frontend-Vercel-black?logo=vercel)](https://quant-x-sigma.vercel.app)
+[![FastAPI Backend](https://img.shields.io/badge/Backend-Render-green?logo=render)](https://quantx-backend-kxge.onrender.com)
+[![GitHub Actions CI](https://github.com/KrSanib1544/QuantX/actions/workflows/ci.yml/badge.svg)](https://github.com/KrSanib1544/QuantX/actions)
 
 ---
 
@@ -24,6 +28,8 @@ graph TD
     AI --> |LSTM/GRU Inference| DB
 ```
 
+In production, the **API Gateway** acts as a unified hub with a built-in **SQLite persistent fallback layer**. If the downstream microservices are offline (common on lightweight cloud hosting), the Gateway executes orders and rebalancing algorithms locally against `quantx_local.db` using the exact same quantitative rules.
+
 ---
 
 ## ✨ Key Features
@@ -32,13 +38,37 @@ graph TD
    - Deep learning forecasting models (LSTM, GRU, Transformers) for stock prices.
    - Reinforcement learning (PPO) agents executing real-time buy/sell/hold decisions.
 2. **Real-world Database Ingestion**:
-   - Seeded with 49 Indian stock histories (Nifty 50) and 10 US stock histories (NASDAQ) spanning 1999–2026.
+   - Automated startup seeder populating the SQLite database with 60+ assets (Nifty 50, NASDAQ, Crypto) and 30 days of historical price history.
 3. **High-Performance Backtesting Lab**:
-   - Code-editor interface executing backtests with live metric charting (Sharpe, Drawdown, Profitability).
+   - Code-editor interface executing historical backtests with live metric charting (Sharpe, Drawdown, Profitability).
 4. **Automated Portfolio Optimization**:
-   - Markowitz mean-variance optimization and automatic asset rebalancing console.
+   - Markowitz mean-variance optimization and automatic asset rebalancing console utilizing SciPy solvers.
 5. **Real-time UI Over WebSockets**:
    - Real-time ticker price feeds, system alerts, and notification drawer.
+
+---
+
+## 📂 Project Structure
+
+```text
+QuantX/
+├── .github/workflows/          # GitHub Actions CI/CD workflows
+├── backend/
+│   ├── api-gateway/            # central router & WebSocket server
+│   ├── market-data-service/    # historical stock price ingestion
+│   ├── portfolio-service/      # order manager & Mean-Variance optimizer
+│   ├── ai-prediction-service/  # LSTM, GRU, and Transformer price predictors
+│   ├── signal-service/         # DRL PPO agent execution
+│   ├── backtesting-service/    # vector strategy simulation engine
+│   ├── quantum-research-service/# advanced strategy research console
+│   └── populate_db.py          # database seeder
+├── frontend/
+│   └── dashboard/              # Next.js React Dashboard application
+├── requirements.txt            # Python dependencies (for local/CI)
+├── requirements-render.txt     # lightweight dependencies (for Render deployment)
+├── start_services.py           # local development runner script
+└── README.md                   # this README
+```
 
 ---
 
@@ -51,10 +81,10 @@ graph TD
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Getting Started (Local Setup)
 
 ### Prerequisites
-* Python 3.9+
+* Python 3.10+
 * Node.js 18+
 
 ### 1. Backend Installation & Database Setup
@@ -68,7 +98,7 @@ source .venv/bin/activate  # On macOS/Linux
 # Install dependencies
 pip install -r requirements.txt
 
-# Seed the database with real-world Nasdaq & Nifty 50 datasets
+# Seed the database with Nasdaq & Nifty 50 datasets
 python backend/populate_db.py
 ```
 
@@ -95,9 +125,6 @@ QuantX includes an extensive suite of unit and system tests ensuring service rel
 ```bash
 # Run unit tests
 pytest tests/
-
-# Run system endpoints checks
-powershell -File tests/test_endpoints.ps1
 ```
 
 ---
@@ -108,6 +135,17 @@ powershell -File tests/test_endpoints.ps1
 | :--- | :--- | :--- | :--- |
 | **API Gateway** | `8005` | `GET /api/health` | Service status aggregator |
 | **API Gateway** | `8005` | `GET /api/portfolio` | Fetch active holdings & positions |
+| **API Gateway** | `8005` | `POST /api/trade` | Route orders (w/ local fallback) |
+| **API Gateway** | `8005` | `POST /api/portfolio/rebalance` | Trigger portfolio optimizer rebalance |
 | **API Gateway** | `8005` | `POST /api/backtest` | Trigger custom strategy backtests |
 | **Market Data** | `8001` | `GET /assets` | List registered stock assets |
 | **AI Prediction**| `8006` | `GET /predict/{symbol}` | Get price forecasting scores |
+
+---
+
+## 🗺️ Future Roadmap
+
+- **Live Broker Integration**: Connect the Execution Engine to broker APIs (e.g., Alpaca, Interactive Brokers, Zerodha) to transition from paper trading to live trading.
+- **Advanced Sentiment Agent**: Stream news feeds and financial statements to extract real-time market sentiment via pre-trained LLMs.
+- **Decentralized Deployments**: Distribute and run the microservices in separate geographical containers using Kubernetes or Docker Swarm.
+- **Enhanced ML Backtesting**: Expand backtesting to include transaction cost models, execution slippage, and historical borrow costs for short sales.
