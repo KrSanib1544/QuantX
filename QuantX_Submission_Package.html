@@ -15,6 +15,22 @@
             securityLevel: 'loose'
         });
     </script>
+    <!-- Include KaTeX for rendering mathematical equations -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            renderMathInElement(document.body, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false},
+                    {left: '\\(', right: '\\)', display: false},
+                    {left: '\\[', right: '\\]', display: true}
+                ]
+            });
+        });
+    </script>
     <style>
         :root {
             --bg-color: #0d1117;
@@ -127,6 +143,14 @@
             font-weight: 700;
         }
 
+        h3 {
+            font-size: 20px;
+            color: var(--text-bright);
+            margin-top: 30px;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+
         p {
             font-size: 16px;
             margin-bottom: 20px;
@@ -168,6 +192,16 @@
             color: #ff7b72;
         }
 
+        .equation-box {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+            font-size: 18px;
+        }
+
         /* Print optimization */
         @media print {
             body {
@@ -178,7 +212,7 @@
                 max-width: 100%;
                 padding: 0;
             }
-            h1, h2 {
+            h1, h2, h3 {
                 color: #000000;
             }
             .subtitle {
@@ -238,7 +272,7 @@
         <!-- Solution Overview -->
         <section id="solution">
             <h2>2. Solution Overview</h2>
-            <p><strong>QuantX</strong> is an end-to-end, AI-powered quantitative paper trading and portfolio management ecosystem. It decouples high-frequency market data ingestion, predictive modeling, execution, and client visualization into a highly modular, decoupled <strong>microservices architecture</strong>.</p>
+            <p>QuantX is an end-to-end, AI-powered quantitative paper trading and portfolio management ecosystem. It decouples high-frequency market data ingestion, predictive modeling, execution, and client visualization into a highly modular, decoupled microservices architecture.</p>
             <p>Key capabilities include:</p>
             <ul>
                 <li><strong>Predictive Ensemble</strong>: Combines LSTM, GRU, and Transformer architectures to forecast multi-step stock prices.</li>
@@ -251,7 +285,7 @@
         <!-- System Architecture -->
         <section id="architecture">
             <h2>3. System Architecture</h2>
-            <p>QuantX is built using a clean, decoupled microservices model designed for horizontal scaling, local resilience, and standard APIs. Below is the system flow showing request routing, data management, and the local SQLite backup system:</p>
+            <p>QuantX is built using a clean, decoupled microservices model designed for horizontal scaling, local resilience, and standard APIs.</p>
             
             <div class="diagram-box">
                 <div class="mermaid">
@@ -274,14 +308,22 @@
                         end
                 </div>
             </div>
-            
-            <p><strong>Resilient Fallbacks:</strong> In the production environment (Render), only the API Gateway and SQLite database are deployed live. When the API Gateway catches connection exceptions while making requests to downstream microservices (like <code>portfolio-service</code>), it falls back to handling the operation locally against the shared SQLite database, achieving 100% platform uptime.</p>
+
+            <h3>Microservices Directory</h3>
+            <ul>
+                <li><strong>API Gateway (FastAPI)</strong>: Serves as the single entry point. Handles JWT authentication, routes incoming HTTP requests to downstream microservices, broadcasts real-time price updates via WebSockets, and hosts database-direct fallbacks for high uptime.</li>
+                <li><strong>Market Data Service</strong>: Manages data ingestion from Yahoo Finance and feeds historical OHLCV data into the database.</li>
+                <li><strong>AI Prediction Service</strong>: Wraps the deep learning models (LSTM, GRU, Transformer) to run inference on incoming market bars.</li>
+                <li><strong>Signal Service</strong>: Evaluates prediction signals and indicators to output high-probability trading signals (BUY/SELL/HOLD).</li>
+                <li><strong>Portfolio & Execution Service</strong>: Coordinates order execution, manages positions, calculates PnL, and runs portfolio optimizer (Mean-Variance) and risk checks.</li>
+                <li><strong>Backtesting Service</strong>: Runs vector-based historical simulation of strategies using historical price series.</li>
+            </ul>
         </section>
 
         <!-- AI Agent Workflow -->
         <section id="workflow">
             <h2>4. AI Agent Workflow</h2>
-            <p>The core engine of QuantX is an autonomous intelligence pipeline that transforms raw market signals into risk-adjusted portfolio trades. The sequence chart below details how signals propagate across the services:</p>
+            <p>The core engine of QuantX is an autonomous intelligence pipeline that transforms raw market signals into risk-adjusted portfolio trades.</p>
             
             <div class="diagram-box">
                 <div class="mermaid">
@@ -307,6 +349,28 @@
                         end
                 </div>
             </div>
+
+            <h3>AI Pipeline Components</h3>
+            <ul>
+                <li><strong>Feature Engineering</strong>: Calculates rolling Technical Analysis indicators (RSI, MACD, Bollinger Bands, Exponential Moving Averages).</li>
+                <li><strong>Deep Learning Forecasting</strong>:
+                    <ul>
+                        <li><strong>LSTM/GRU</strong>: Capture long-term sequential dependencies in historical stock prices.</li>
+                        <li><strong>Transformer</strong>: Multi-head self-attention models to identify cross-time correlations.</li>
+                    </ul>
+                </li>
+                <li><strong>Reinforcement Learning Execution (PPO)</strong>:
+                    <ul>
+                        <li><strong>State Space</strong>: Includes closing price, position holdings, cash balance, and forecasted returns.</li>
+                        <li><strong>Action Space</strong>: Continuous action mapping corresponding to target weights, or discrete actions (BUY/SELL/HOLD).</li>
+                        <li><strong>Reward Function</strong>: Structured to maximize Sharpe Ratio while penalizing drawdowns and transaction costs:
+                            <div class="equation-box">
+                                $$R_t = \frac{r_p - r_f}{\sigma_p} - \lambda \cdot \text{Drawdown} - \gamma \cdot \text{Turnover}$$
+                            </div>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
         </section>
 
         <!-- Technologies Used -->
@@ -334,26 +398,41 @@
             </ul>
         </section>
 
-        <!-- Results -->
+        <!-- Results & Benchmarks -->
         <section id="results">
             <h2>7. Results & Benchmarks</h2>
             <p>During backtesting simulations run from 2024 to 2026:</p>
             <ul>
-                <li>The <strong>QuantX PPO Agent</strong> outperformed a standard Buy-and-Hold benchmark on Nifty 50 assets by <strong>4.2% annualized return</strong>, while reducing maximum drawdown by <strong>3.1%</strong> through adaptive risk scaling.</li>
-                <li>The <strong>Predictive Ensemble</strong> (LSTM + Transformer) achieved a Mean Absolute Percentage Error (MAPE) of <strong>1.45%</strong> on 1-day-ahead predictions for high-liquidity US equities (AAPL, NVDA).</li>
+                <li>The QuantX PPO Agent outperformed a standard Buy-and-Hold benchmark on Nifty 50 assets by <strong>4.2% annualized return</strong>, while reducing maximum drawdown by <strong>3.1%</strong> through adaptive risk scaling.</li>
+                <li>The Predictive Ensemble (LSTM + Transformer) achieved a Mean Absolute Percentage Error (MAPE) of <strong>1.45%</strong> on 1-day-ahead predictions for high-liquidity US equities (AAPL, NVDA).</li>
                 <li>Production API Gateway performance: Latency of less than <strong>150ms</strong> for REST requests, and real-time updates broadcast over WebSockets every <strong>2 seconds</strong>.</li>
+            </ul>
+        </section>
+
+        <!-- Development Challenges & Learnings -->
+        <section id="challenges">
+            <h2>8. Development Challenges & Learnings</h2>
+            <ul>
+                <li><strong>Compiler Dependencies in Serverless Environments</strong>: PyTorch, Numba, and Stable-Baselines3 require C++ compilation, which often fails on lightweight cloud tiers (like Render Free tier). We resolved this by separating dependencies into <code>requirements.txt</code> (full ML dependencies for GitHub test runners) and <code>requirements-render.txt</code> (lightweight web dependencies for Render), and implementing gateway database fallbacks.</li>
+                <li><strong>Private Network Access (PNA)</strong>: Accessing <code>localhost:8005</code> from an HTTPS frontend (vercel.app) causes CORS and secure-context blockers in modern browsers. Resolving this required mapping Vercel env variables (<code>NEXT_PUBLIC_API_URL</code>) to the live Render URL.</li>
+                <li><strong>Seeding Cloud Databases</strong>: Unlike local databases that persist files, cloud servers deploy containerized SQLite databases that launch empty. We created a dynamic seeder script inside the API Gateway's <code>startup_event()</code> to automatically seed 60+ assets (US, Indian, and Cryptos) and 30 days of price history on startup.</li>
             </ul>
         </section>
 
         <!-- Future Roadmap -->
         <section id="roadmap">
-            <h2>8. Future Roadmap</h2>
+            <h2>9. Future Roadmap</h2>
             <ul>
                 <li><strong>Real Broker Integration</strong>: Connect the Execution Engine to paper/live trading APIs (e.g., Alpaca, Zerodha) to transition from paper trading to live trading.</li>
-                <li><strong>Advanced Sentiment Agent</strong>: Stream news feeds and financial statements to extract real-time market sentiment via pre-trained LLMs.</li>
-                <li><strong>Decentralized Deployments</strong>: Distribute and run the microservices in separate geographical containers using Kubernetes or Docker Swarm.</li>
-                <li><strong>Enhanced ML Backtesting</strong>: Expand backtesting to include transaction cost models, execution slippage, and historical borrow costs for short sales.</li>
+                <li><strong>Distributed Microservices</strong>: Deploy downstream microservices on separate cloud instances and orchestrate them via Docker Swarm or Kubernetes.</li>
+                <li><strong>Large Language Model (LLM) Integration</strong>: Incorporate sentiment analysis from news articles and financial statements (SEC filings) as features for the RL agent.</li>
             </ul>
+        </section>
+
+        <!-- Conclusion -->
+        <section id="conclusion">
+            <h2>10. Conclusion</h2>
+            <p>QuantX demonstrates how modern microservices architecture can bridge the gap between complex AI trading models and real-time execution interfaces. By separating concerns between prediction, signals, execution, and risk, QuantX provides a resilient, scalable, and highly educational framework for quantitative trading development.</p>
         </section>
     </div>
 </body>
