@@ -175,6 +175,7 @@ class ConnectionManager:
 def startup_event():
     import uuid
     import datetime
+    import random
     
     # Prepopulate tables with demo records if they are empty
     with engine.begin() as conn:
