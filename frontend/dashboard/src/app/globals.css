@@ -7,3 +7,224 @@ body {
   color: #F3F4F6;
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
 }
+
+/* Print utility classes */
+@media screen {
+  .print-only {
+    display: none !important;
+  }
+}
+
+@media print {
+  /* 1. Hide UI shell elements */
+  aside,
+  header,
+  footer,
+  nav,
+  button,
+  input,
+  select,
+  textarea,
+  .no-print {
+    display: none !important;
+  }
+
+  /* 2. Hide everything inside main except the active tab's printable container */
+  main > div > h2,
+  main > div > div.grid > div:first-child, /* Left parameters form in report builder */
+  .xl\:col-span-2, /* IDE text editor in backtesting */
+  .xl\:col-span-3, /* Other panels */
+  .bg-\[\#0B0F19\].border.border-gray-800.rounded-xl.p-5.shadow.space-y-4, /* backtest parameters */
+  .flex.justify-between.items-center.pb-4.mb-4.border-b, /* results panel header (contains action buttons) */
+  .border-b.border-gray-850.pb-3.mb-4 /* tabs navbar */ {
+    display: none !important;
+  }
+
+  /* 3. Reset layouts for paper printing */
+  body {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    font-family: ui-sans-serif, system-ui, -apple-system, sans-serif !important;
+  }
+
+  main {
+    display: block !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* 4. Format the printable report container */
+  #printable-report-area {
+    display: block !important;
+    width: 100% !important;
+    max-width: 1000px !important;
+    margin: 0 auto !important;
+    padding: 3rem !important;
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+    border: none !important;
+    box-shadow: none !important;
+    box-sizing: border-box !important;
+    position: relative !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  /* Force standard color print settings for backgrounds and charts */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Text colors for contrast on white background */
+  #printable-report-area span,
+  #printable-report-area p,
+  #printable-report-area h3,
+  #printable-report-area h4,
+  #printable-report-area div {
+    color: #1f2937 !important;
+  }
+
+  /* Metrics card grid overrides (5 columns) */
+  #printable-report-area .grid-cols-2.md\:grid-cols-5 {
+    display: grid !important;
+    grid-template-columns: repeat(5, 1fr) !important;
+    gap: 1rem !important;
+    background-color: #f9fafb !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 12px !important;
+    padding: 1.5rem !important;
+    margin-bottom: 2.5rem !important;
+  }
+
+  /* Metrics cards labels & values */
+  #printable-report-area .grid-cols-2.md\:grid-cols-5 > div {
+    border-right: 1px solid #e5e7eb !important;
+  }
+  #printable-report-area .grid-cols-2.md\:grid-cols-5 > div:last-child {
+    border-right: none !important;
+  }
+
+  #printable-report-area .text-xl {
+    font-size: 1.6rem !important;
+    font-weight: 800 !important;
+    color: #111827 !important;
+  }
+
+  #printable-report-area .text-emerald-400 {
+    color: #047857 !important; /* Deep Green */
+  }
+
+  #printable-report-area .text-red-500 {
+    color: #b91c1c !important; /* Deep Red */
+  }
+
+  /* Grid layout for charts */
+  #printable-report-area .grid-cols-1.lg\:grid-cols-3 {
+    display: grid !important;
+    grid-template-columns: 2fr 1fr !important; /* 70% / 30% split */
+    gap: 1.5rem !important;
+  }
+
+  /* individual chart containers */
+  #printable-report-area .bg-\[\#0B0F19\].border {
+    background-color: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 12px !important;
+    padding: 1.5rem !important;
+    box-shadow: none !important;
+  }
+
+  #printable-report-area .text-gray-400,
+  #printable-report-area .text-gray-500 {
+    color: #4b5563 !important;
+  }
+
+  /* Style the report header */
+  .report-print-header {
+    border-bottom: 3px double #d1d5db !important;
+    padding-bottom: 1.5rem !important;
+    margin-bottom: 2rem !important;
+  }
+
+  /* 5. Force height auto and overflow visible to prevent scrollbars in print output */
+  html, body, 
+  div, main, section, article,
+  .overflow-y-auto,
+  .overflow-hidden,
+  .flex-1 {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    scrollbar-width: none !important;
+  }
+
+  *::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+.animate-spin-slow {
+  animation: spin-slow 12s linear infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.6;
+    box-shadow: 0 0 4px rgba(16, 185, 129, 0.4);
+  }
+  50% {
+    opacity: 1.0;
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.8);
+  }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite ease-in-out;
+}
+
+@keyframes spin-reverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+.animate-spin-reverse {
+  animation: spin-reverse 20s linear infinite;
+}
+
+.bg-grid-pattern {
+  background-size: 30px 30px;
+  background-image: 
+    linear-gradient(to right, rgba(16, 185, 129, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(16, 185, 129, 0.02) 1px, transparent 1px);
+}
+
+

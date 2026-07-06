@@ -184,15 +184,19 @@ def run_retraining_in_background():
         # Get absolute paths to scripts relative to project root
         root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
         
+        # Prepare environment with PYTHONPATH set to the project root
+        env = os.environ.copy()
+        env["PYTHONPATH"] = root_dir
+        
         # 1. Retrain forecasting models (epochs=2 for lightweight training during live trigger)
         cmd_forecasters = [sys.executable, "ml/forecasting/train.py"]
         logger.info(f"Executing: {' '.join(cmd_forecasters)}")
-        res1 = subprocess.run(cmd_forecasters, capture_output=True, text=True, cwd=root_dir)
+        res1 = subprocess.run(cmd_forecasters, capture_output=True, text=True, cwd=root_dir, env=env)
         
         # 2. Retrain RL agent (timesteps=100 for lightweight training during live trigger)
         cmd_rl = [sys.executable, "ml/reinforcement_learning/rl_agent.py"]
         logger.info(f"Executing: {' '.join(cmd_rl)}")
-        res2 = subprocess.run(cmd_rl, capture_output=True, text=True, cwd=root_dir)
+        res2 = subprocess.run(cmd_rl, capture_output=True, text=True, cwd=root_dir, env=env)
         
         if res1.returncode == 0 and res2.returncode == 0:
             retraining_status = "completed"

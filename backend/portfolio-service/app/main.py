@@ -212,6 +212,88 @@ def execute_trade_mock(
         "new_equity": new_equity
     }
 
+def get_brokerage_settings_db() -> Dict[str, str]:
+    try:
+        with engine.connect() as conn:
+            # Check if system_settings table exists first, to avoid crashes during early init
+            table_check = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='system_settings'")).fetchone()
+            if not table_check:
+                # For PostgreSQL, check information_schema
+                table_check_pg = conn.execute(text("SELECT table_name FROM information_schema.tables WHERE table_name='system_settings'")).fetchone()
+                if not table_check_pg:
+                    return {}
+            
+            rows = conn.execute(text("SELECT key, value FROM system_settings WHERE key IN ('alpaca_api_key', 'alpaca_secret_key', 'live_trading')")).fetchall()
+            return {row[0]: row[1] for row in rows}
+    except Exception as e:
+        logger.error(f"Error fetching brokerage settings from DB: {e}")
+        return {}
+
+def save_brokerage_settings_db(api_key: str, secret_key: str, live_trading: bool):
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM system_settings WHERE key = 'alpaca_api_key'"))
+        conn.execute(text("INSERT INTO system_settings (key, value) VALUES ('alpaca_api_key', :val)"), {"val": api_key})
+        
+        conn.execute(text("DELETE FROM system_settings WHERE key = 'alpaca_secret_key'"))
+        conn.execute(text("INSERT INTO system_settings (key, value) VALUES ('alpaca_secret_key', :val)"), {"val": secret_key})
+        
+        conn.execute(text("DELETE FROM system_settings WHERE key = 'live_trading'"))
+        conn.execute(text("INSERT INTO system_settings (key, value) VALUES ('live_trading', :val)"), {"val": str(live_trading).lower()})
+
+def load_brokerage_credentials() -> Tuple[Optional[str], Optional[str], bool]:
+    db_settings = get_brokerage_settings_db()
+    key = db_settings.get("alpaca_api_key") or os.getenv("ALPACA_API_KEY")
+    secret = db_settings.get("alpaca_secret_key") or os.getenv("ALPACA_SECRET_KEY")
+    
+    live_val = db_settings.get("live_trading")
+    if live_val is not None:
+        live = live_val.lower() in ("true", "1", "yes")
+    else:
+        live = os.getenv("LIVE_TRADING", "false").lower() in ("true", "1", "yes")
+        
+    def is_valid(k: Optional[str]) -> bool:
+        if not k:
+            return False
+        kl = k.lower().strip()
+        if kl in ["", "none", "null", "undefined", "testkey123", "testsecret456", "your_alpaca_key", "your_alpaca_secret_key", "dummy", "placeholder"]:
+            return False
+        if "your_" in kl or "enter_" in kl or "testkey" in kl or "testsecret" in kl:
+            return False
+        if len(k) < 15:
+            return False
+        return True
+
+    if not is_valid(key) or not is_valid(secret):
+        return None, None, live
+        
+    return key, secret, live
+
+def sync_alpaca_portfolio_balance(portfolio_id: str):
+    key, secret, live = load_brokerage_credentials()
+    if not key or not secret:
+        return
+        
+    base_url = "https://api.alpaca.markets" if live else "https://paper-api.alpaca.markets"
+    headers = {
+        "APCA-API-KEY-ID": key,
+        "APCA-API-SECRET-KEY": secret
+    }
+    try:
+        import requests
+        res = requests.get(f"{base_url}/v2/account", headers=headers, timeout=3)
+        if res.status_code == 200:
+            data = res.json()
+            alpaca_cash = float(data.get("cash", 0.0))
+            alpaca_equity = float(data.get("equity", 0.0))
+            with engine.begin() as conn:
+                conn.execute(
+                    text("UPDATE portfolios SET cash = :cash, equity = :eq WHERE id = :id"),
+                    {"cash": alpaca_cash, "eq": alpaca_equity, "id": portfolio_id}
+                )
+                logger.info(f"Synchronized portfolio balance with Alpaca: cash={alpaca_cash:.2f}, equity={alpaca_equity:.2f}")
+    except Exception as e:
+        logger.warning(f"Failed to sync portfolio balance with Alpaca: {e}")
+
 def execute_trade_alpaca(
     symbol: str,
     side: str,
@@ -324,9 +406,7 @@ def process_trading_signal(signal_msg: Dict[str, Any]):
             return
             
         # 5. Execution (Broker check)
-        alpaca_key = os.getenv("ALPACA_API_KEY")
-        alpaca_secret = os.getenv("ALPACA_SECRET_KEY")
-        alpaca_live = os.getenv("LIVE_TRADING", "false").lower() in ("true", "1", "yes")
+        alpaca_key, alpaca_secret, alpaca_live = load_brokerage_credentials()
         
         if alpaca_key and alpaca_secret:
             logger.info(f"Credentials found. Routing trade to Alpaca {'Live' if alpaca_live else 'Paper'} API...")
@@ -390,9 +470,7 @@ async def alpaca_stream_listener():
     import json
     import asyncio
     
-    key = os.getenv("ALPACA_API_KEY")
-    secret = os.getenv("ALPACA_SECRET_KEY")
-    live = os.getenv("LIVE_TRADING", "false").lower() in ("true", "1", "yes")
+    key, secret, live = load_brokerage_credentials()
     
     if not key or not secret:
         logger.info("Alpaca credentials not configured for WebSocket stream. Skipping listener.")
@@ -506,9 +584,7 @@ def execute_manual(order: Dict[str, Any]):
         if not approved:
             raise HTTPException(status_code=400, detail=f"Risk manager rejected order: {reason}")
             
-        alpaca_key = os.getenv("ALPACA_API_KEY")
-        alpaca_secret = os.getenv("ALPACA_SECRET_KEY")
-        alpaca_live = os.getenv("LIVE_TRADING", "false").lower() in ("true", "1", "yes")
+        alpaca_key, alpaca_secret, alpaca_live = load_brokerage_credentials()
         
         if alpaca_key and alpaca_secret:
             success, message, details = execute_trade_alpaca(
@@ -806,6 +882,16 @@ def get_portfolio_metrics(portfolio_id: Optional[str] = None):
     based on the current portfolio positions and historical daily prices.
     """
     try:
+        # Sync Alpaca balance first if configured
+        with engine.connect() as conn:
+            if portfolio_id:
+                p_id = portfolio_id
+            else:
+                p_row = conn.execute(text("SELECT id FROM portfolios LIMIT 1")).fetchone()
+                p_id = p_row[0] if p_row else None
+            if p_id:
+                sync_alpaca_portfolio_balance(p_id)
+
         with engine.connect() as conn:
             # Get portfolio ID and cash
             if portfolio_id:
@@ -934,6 +1020,98 @@ def get_portfolio_metrics(portfolio_id: Optional[str] = None):
             "max_drawdown": 0.0412,
             "var_95": 0.0245,
             "status": "fallback"
+        }
+
+class BrokerageSettingsRequest(BaseModel):
+    alpaca_api_key: str
+    alpaca_secret_key: str
+    live_trading: bool = False
+
+@app.post("/brokerage/settings")
+def update_brokerage_settings(req: BrokerageSettingsRequest):
+    try:
+        save_brokerage_settings_db(req.alpaca_api_key, req.alpaca_secret_key, req.live_trading)
+        return {"status": "success", "message": "Brokerage credentials updated successfully."}
+    except Exception as e:
+        logger.error(f"Error saving brokerage settings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/brokerage/settings")
+def get_brokerage_settings():
+    db_settings = get_brokerage_settings_db()
+    # Mask secret key for security
+    api_key = db_settings.get("alpaca_api_key", "")
+    secret_key = db_settings.get("alpaca_secret_key", "")
+    if secret_key:
+        masked_secret = secret_key[:4] + "*" * (len(secret_key) - 8) + secret_key[-4:] if len(secret_key) > 8 else "****"
+    else:
+        masked_secret = ""
+        
+    return {
+        "alpaca_api_key": api_key,
+        "alpaca_secret_key": masked_secret,
+        "live_trading": db_settings.get("live_trading", "false").lower() in ("true", "1", "yes")
+    }
+
+@app.get("/brokerage/status")
+def get_brokerage_status():
+    key, secret, live = load_brokerage_credentials()
+    if not key or not secret:
+        return {
+            "status": "disconnected",
+            "message": "No brokerage credentials configured.",
+            "live_trading": live,
+            "account_info": {}
+        }
+    
+    base_url = "https://api.alpaca.markets" if live else "https://paper-api.alpaca.markets"
+    headers = {
+        "APCA-API-KEY-ID": key,
+        "APCA-API-SECRET-KEY": secret
+    }
+    
+    try:
+        import requests
+        res = requests.get(f"{base_url}/v2/account", headers=headers, timeout=5)
+        if res.status_code == 200:
+            data = res.json()
+            # Also sync database portfolio cash/equity
+            try:
+                with engine.connect() as conn:
+                    p_row = conn.execute(text("SELECT id FROM portfolios LIMIT 1")).fetchone()
+                    if p_row:
+                        conn.execute(
+                            text("UPDATE portfolios SET cash = :cash, equity = :eq WHERE id = :id"),
+                            {"cash": float(data.get("cash", 0.0)), "eq": float(data.get("equity", 0.0)), "id": p_row[0]}
+                        )
+            except Exception as se:
+                logger.error(f"Error syncing balance in status check: {se}")
+
+            return {
+                "status": "connected",
+                "message": f"Successfully connected to Alpaca {'Live' if live else 'Paper'} account.",
+                "live_trading": live,
+                "account_info": {
+                    "cash": float(data.get("cash", 0.0)),
+                    "equity": float(data.get("equity", 0.0)),
+                    "buying_power": float(data.get("buying_power", 0.0)),
+                    "currency": data.get("currency", "USD"),
+                    "account_number": data.get("account_number", "")
+                }
+            }
+        else:
+            return {
+                "status": "error",
+                "message": f"Alpaca API error (HTTP {res.status_code}): {res.text}",
+                "live_trading": live,
+                "account_info": {}
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Alpaca Connection Failure: {e}",
+            "live_trading": live,
+            "account_info": {}
         }
 
 if __name__ == "__main__":

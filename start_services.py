@@ -48,7 +48,7 @@ SERVICES = {
     "api-gateway": {
         "port": 8005,
         "cwd": "backend/api-gateway",
-        "cmd": [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8005"],
+        "cmd": [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8005"],
         "health": "http://127.0.0.1:8005/api/health"
     },
     "ai-prediction-service": {
@@ -62,13 +62,6 @@ SERVICES = {
         "cwd": "backend/quantum-research-service",
         "cmd": [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8007"],
         "health": "http://127.0.0.1:8007/health"
-    },
-    "frontend-dashboard": {
-        "port": 3000,
-        "cwd": "frontend/dashboard",
-        "cmd": "npm run dev",
-        "shell": True,
-        "health": "http://localhost:3000"
     }
 }
 

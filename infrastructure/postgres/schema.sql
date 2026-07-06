@@ -152,3 +152,10 @@ CREATE TABLE IF NOT EXISTS quantum_experiments (
     classical_lift NUMERIC(8, 6)
 );
 
+-- 12. SYSTEM SETTINGS TABLE
+CREATE TABLE IF NOT EXISTS system_settings (
+    key VARCHAR(100) PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+

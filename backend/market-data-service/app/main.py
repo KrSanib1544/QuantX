@@ -226,44 +226,28 @@ def fetch_historical_ohlcv(db: Session, asset: AssetModel, period: str = "1y"):
         logger.info(f"Loaded {added_count} historical price records for {asset.symbol}")
     except Exception as e:
         logger.error(f"Error fetching historical data for {asset.symbol}: {e}")
-
 @app.on_event("startup")
 def startup_event():
     global ingestion_task
-    # Pre-populate some assets if database is empty
+    # Pre-populate assets if database is empty
     db = SessionLocal()
     try:
         count = db.query(AssetModel).count()
         if count == 0:
-            default_assets = [
-                {"symbol": "AAPL", "name": "Apple Inc.", "sector": "Technology"},
-                {"symbol": "MSFT", "name": "Microsoft Corp.", "sector": "Technology"},
-                {"symbol": "TSLA", "name": "Tesla Inc.", "sector": "Automotive"},
-                {"symbol": "BTC-USD", "name": "Bitcoin USD", "sector": "Cryptocurrency"}
-            ]
-            for asset_data in default_assets:
-                db.add(AssetModel(
-                    symbol=asset_data["symbol"], 
-                    name=asset_data["name"], 
-                    sector=asset_data["sector"]
-                ))
-            db.commit()
-            logger.info("Initialized default assets database.")
-            
-        # Fetch historical prices for any active assets if prices are empty
-        prices_count = db.query(PriceModel).count()
-        if prices_count == 0:
-            logger.info("Database prices table is empty. Fetching historical data (1 year)...")
-            active_assets = db.query(AssetModel).filter(AssetModel.is_active == True).all()
-            for asset in active_assets:
-                fetch_historical_ohlcv(db, asset, period="1y")
+            logger.info("Database is empty. Populating with Indian and Global market data...")
+            import sys
+            import os
+            # Add backend folder to sys.path
+            sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+            import populate_db
+            populate_db.populate(engine)
+            sys.path.pop(0)
     except Exception as e:
-        logger.error(f"Failed to populate default assets or historical prices: {e}")
+        logger.error(f"Failed to populate assets on startup: {e}")
     finally:
         db.close()
-        
-    # Start loop
     ingestion_task = asyncio.create_task(ingestion_loop())
+
 
 @app.on_event("shutdown")
 def shutdown_event():
@@ -298,6 +282,154 @@ async def trigger_ingest(symbol: str, db: Session = Depends(get_db)):
     
     await fetch_and_publish_ohlcv(db, asset.id, asset.symbol)
     return {"status": "success", "message": f"Ingestion triggered for {symbol}"}
+
+@app.get("/options-chain/{symbol}")
+def get_options_chain(symbol: str, db: Session = Depends(get_db)):
+    symbol = symbol.upper()
+    offline = os.getenv("OFFLINE_MODE", "true").lower() in ("true", "1", "yes")
+    
+    # Get current price
+    latest_price = 180.0
+    asset = db.query(AssetModel).filter_by(symbol=symbol).first()
+    if asset:
+        p_rec = db.query(PriceModel).filter_by(asset_id=asset.id).order_by(PriceModel.timestamp.desc()).first()
+        if p_rec:
+            latest_price = float(p_rec.close)
+            
+    if offline:
+        # Generate simulated options chain
+        import random
+        import datetime
+        exp_date = (datetime.date.today() + datetime.timedelta(days=30)).strftime("%Y-%m-%d")
+        strikes = [int(latest_price * r) for r in [0.90, 0.95, 1.0, 1.05, 1.10]]
+        calls = []
+        puts = []
+        for strike in strikes:
+            # Calls
+            c_price = max(0.5, latest_price - strike + random.uniform(1.0, 3.0)) if latest_price > strike else max(0.1, random.uniform(0.1, 2.0))
+            calls.append({
+                "contractSymbol": f"{symbol}{exp_date.replace('-', '')[2:]}C{strike:08d}",
+                "strike": strike,
+                "lastPrice": round(c_price, 2),
+                "volume": random.randint(10, 500),
+                "openInterest": random.randint(100, 2000),
+                "impliedVolatility": round(random.uniform(0.15, 0.45), 4)
+            })
+            # Puts
+            p_price = max(0.5, strike - latest_price + random.uniform(1.0, 3.0)) if strike > latest_price else max(0.1, random.uniform(0.1, 2.0))
+            puts.append({
+                "contractSymbol": f"{symbol}{exp_date.replace('-', '')[2:]}P{strike:08d}",
+                "strike": strike,
+                "lastPrice": round(p_price, 2),
+                "volume": random.randint(10, 500),
+                "openInterest": random.randint(100, 2000),
+                "impliedVolatility": round(random.uniform(0.15, 0.45), 4)
+            })
+        return {
+            "symbol": symbol,
+            "expirationDates": [exp_date],
+            "underlyingPrice": latest_price,
+            "calls": calls,
+            "puts": puts
+        }
+        
+    try:
+        import yfinance as yf
+        import pandas as pd
+        ticker = yf.Ticker(symbol)
+        options = ticker.options
+        if not options:
+            raise HTTPException(status_code=404, detail=f"No options found for {symbol}")
+            
+        opt = ticker.option_chain(options[0])
+        
+        # Convert DataFrames to serializable dicts
+        calls_data = []
+        for _, row in opt.calls.iterrows():
+            calls_data.append({
+                "contractSymbol": row.get("contractSymbol", ""),
+                "strike": row.get("strike", 0.0),
+                "lastPrice": row.get("lastPrice", 0.0),
+                "volume": int(row.get("volume", 0)) if not pd.isna(row.get("volume")) else 0,
+                "openInterest": int(row.get("openInterest", 0)) if not pd.isna(row.get("openInterest")) else 0,
+                "impliedVolatility": row.get("impliedVolatility", 0.0)
+            })
+            
+        puts_data = []
+        for _, row in opt.puts.iterrows():
+            puts_data.append({
+                "contractSymbol": row.get("contractSymbol", ""),
+                "strike": row.get("strike", 0.0),
+                "lastPrice": row.get("lastPrice", 0.0),
+                "volume": int(row.get("volume", 0)) if not pd.isna(row.get("volume")) else 0,
+                "openInterest": int(row.get("openInterest", 0)) if not pd.isna(row.get("openInterest")) else 0,
+                "impliedVolatility": row.get("impliedVolatility", 0.0)
+            })
+            
+        return {
+            "symbol": symbol,
+            "expirationDates": options[:5],
+            "underlyingPrice": latest_price,
+            "calls": calls_data[:10],
+            "puts": puts_data[:10]
+        }
+    except Exception as e:
+        logger.error(f"Error fetching option chain for {symbol}: {e}")
+        return {
+            "symbol": symbol,
+            "expirationDates": ["2026-08-01"],
+            "underlyingPrice": latest_price,
+            "calls": [{"contractSymbol": f"{symbol}260801C{int(latest_price):08d}", "strike": int(latest_price), "lastPrice": 5.0, "volume": 100, "openInterest": 500, "impliedVolatility": 0.25}],
+            "puts": [{"contractSymbol": f"{symbol}260801P{int(latest_price):08d}", "strike": int(latest_price), "lastPrice": 4.5, "volume": 80, "openInterest": 400, "impliedVolatility": 0.24}]
+        }
+
+@app.get("/forex-rates")
+def get_forex_rates():
+    offline = os.getenv("OFFLINE_MODE", "true").lower() in ("true", "1", "yes")
+    pairs = ["EURUSD=X", "GBPUSD=X", "JPYUSD=X", "AUDUSD=X", "CADUSD=X"]
+    rates = {}
+    
+    if offline:
+        import random
+        import datetime
+        baselines = {
+            "EURUSD=X": 1.09,
+            "GBPUSD=X": 1.28,
+            "JPYUSD=X": 0.0064,
+            "AUDUSD=X": 0.67,
+            "CADUSD=X": 0.73
+        }
+        for pair, base in baselines.items():
+            rates[pair] = round(base * (1.0 + random.normalvariate(0.0, 0.002)), 4)
+        return {
+            "status": "success",
+            "rates": rates,
+            "timestamp": datetime.datetime.utcnow().isoformat()
+        }
+        
+    try:
+        import yfinance as yf
+        import datetime
+        for pair in pairs:
+            ticker = yf.Ticker(pair)
+            hist = ticker.history(period="1d")
+            if not hist.empty:
+                rates[pair] = round(float(hist["Close"].iloc[-1]), 4)
+            else:
+                rates[pair] = 1.0
+        return {
+            "status": "success",
+            "rates": rates,
+            "timestamp": datetime.datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error fetching forex rates: {e}")
+        import datetime
+        return {
+            "status": "fallback",
+            "rates": {"EURUSD=X": 1.09, "GBPUSD=X": 1.28, "JPYUSD=X": 0.0064, "AUDUSD=X": 0.67, "CADUSD=X": 0.73},
+            "timestamp": datetime.datetime.utcnow().isoformat()
+        }
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=8001, reload=True)

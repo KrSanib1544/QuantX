@@ -130,6 +130,12 @@ CREATE TABLE IF NOT EXISTS quantum_experiments (
     quantum_confidence REAL,
     classical_lift REAL
 );
+
+CREATE TABLE IF NOT EXISTS system_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 def create_sqlite_engine_and_init():

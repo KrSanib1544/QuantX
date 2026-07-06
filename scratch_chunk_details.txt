@@ -1,0 +1,517 @@
+=== TARGET ===
+  if (authState === "signup") {
+    // Matches 'Main Page.jpeg' (Create your terminal access)
+    return (
+      <div className="min-h-screen bg-[#070A13] text-[#F3F4F6] flex font-sans select-none overflow-y-auto">
+        {/* Left column */}
+        <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#0B0F19] to-[#05070D] p-16 flex-col justify-between border-r border-[#1e293b]">
+          <div>
+            <div className="flex items-center space-x-3 text-emerald-400 text-3xl font-extrabold tracking-wider">
+              <Zap className="h-8 w-8 fill-current" />
+              <span>QUANTX</span>
+            </div>
+            <div className="mt-16 space-y-6">
+              <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded text-xs font-mono tracking-widest uppercase">
+                QuantX Engine v4.2.0
+              </span>
+              <h1 className="text-5xl font-extrabold text-white leading-tight">
+                Institutional<br />Intelligence<br />Redefined by AI.
+              </h1>
+              <p className="text-gray-400 max-w-md text-sm leading-relaxed">
+                Join 500+ global hedge funds and prop desks leveraging quantum-speed execution and predictive market signals.
+              </p>
+            </div>
+
+            <div className="mt-16 space-y-8">
+              <div className="flex items-start space-x-4">
+                <div className="h-10 w-10 rounded bg-[#1e293b] flex items-center justify-center border border-[#334155] text-emerald-400 mt-1">
+                  <Atom size={20} />
+                </div>
+                <div>
+                  <h4 className="text-white font-bold text-sm">Quantum-Grade Execution</h4>
+                  <p className="text-xs text-gray-500 mt-0.5">Sub-millisecond order routing through our global liquidity backbone.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-4">
+                <div className="h-10 w-10 rounded bg-[#1e293b] flex items-center justify-center border border-[#334155] text-emerald-400 mt-1">
+                  <Brain size={20} />
+                </div>
+                <div>
+                  <h4 className="text-white font-bold text-sm">Explainable AI Signals</h4>
+                  <p className="text-xs text-gray-500 mt-0.5">Real-time predictive scoring with full feature-contribution transparency.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-4">
+                <div className="h-10 w-10 rounded bg-[#1e293b] flex items-center justify-center border border-[#334155] text-emerald-400 mt-1">
+                  <Globe size={20} />
+                </div>
+                <div>
+                  <h4 className="text-white font-bold text-sm">Cross-Asset Intelligence</h4>
+                  <p className="text-xs text-gray-500 mt-0.5">Unified insights across Equities, FX, Commodities, and Digital Assets.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-8 opacity-40">
+            <span className="text-xs font-bold tracking-widest uppercase text-gray-500">Nasdaq</span>
+            <span className="text-xs font-bold tracking-widest uppercase text-gray-500">Cme Group</span>
+            <span className="text-xs font-bold tracking-widest uppercase text-gray-500">Reuters</span>
+          </div>
+        </div>
+
+        {/* Right column */}
+        <div className="w-full lg:w-1/2 flex flex-col justify-between p-10 bg-[#070A13]">
+          <div className="flex justify-end text-xs text-gray-400">
+            <span>Already have an institutional account?</span>
+            <button onClick={() => setAuthState("login")} className="text-emerald-400 font-bold ml-1.5 hover:underline">
+              SIGN IN
+            </button>
+          </div>
+
+          <div className="max-w-md w-full mx-auto my-12 space-y-6">
+            <div className="space-y-2">
+              <h2 className="text-3xl font-extrabold text-white">Create your terminal access</h2>
+              <p className="text-xs text-gray-400">Complete the institutional verification to begin trading.</p>
+            </div>
+
+            <form onSubmit={handleSignupSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Select Professional Persona</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: "TRADER", title: "TRADER", desc: "Execution focused, high-frequency tools." },
+                    { id: "RESEARCHER", title: "RESEARCHER", desc: "Deep modeling and backtesting lab access." },
+                    { id: "PORTFOLIO_MGR", title: "PORTFOLIO MGR", desc: "Risk oversight and asset allocation." },
+                    { id: "SYSADMIN", title: "SYSADMIN", desc: "Infrastructure and API management." }
+                  ].map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setSignupForm(prev => ({ ...prev, persona: p.id }))}
+                      className={`p-3 rounded-lg border text-left flex flex-col justify-between transition-all ${
+                        signupForm.persona === p.id
+                          ? "border-emerald-500 bg-emerald-500/5 shadow-[0_0_12px_rgba(16,185,129,0.1)]"
+                          : "border-[#1e293b] bg-[#0B0F19] hover:border-gray-800"
+                      }`}
+                    >
+                      <div className="flex justify-between items-center w-full">
+                        <span className="text-xs font-bold text-white tracking-wider">{p.title}</span>
+                        {signupForm.persona === p.id && <Check size={14} className="text-emerald-400" />}
+                      </div>
+                      <span className="text-[10px] text-gray-500 mt-2 leading-relaxed">{p.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Organization / Fund Name</label>
+                <div className="relative">
+                  <Briefcase size={16} className="absolute left-3 top-3 text-gray-600" />
+                  <input
+                    type="text"
+                    value={signupForm.organization}
+                    onChange={(e) => setSignupForm(prev => ({ ...prev, organization: e.target.value }))}
+                    className="w-full bg-[#0B0F19] border border-[#1e293b] rounded-lg p-2.5 pl-10 text-sm text-white focus:outline-none focus:border-emerald-500 placeholder-gray-700"
+                    placeholder="e.g. BlackEdge Capital"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Professional Email Address</label>
+                <div className="relative">
+                  <Mail size={16} className="absolute left-3 top-3 text-gray-600" />
+                  <input
+                    type="email"
+                    value={signupForm.email}
+                    onChange={(e) => setSignupForm(prev => ({ ...prev, email: e.target.value }))}
+                    className="w-full bg-[#0B0F19] border border-[#1e293b] rounded-lg p-2.5 pl-10 text-sm text-white focus:outline-none focus:border-emerald-500 placeholder-gray-700"
+                    placeholder="name@organization.com"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Access Password</label>
+                <div className="relative">
+                  <Lock size={16} className="absolute left-3 top-3 text-gray-600" />
+                  <input
+                    type="password"
+                    value={signupForm.password}
+                    onChange={(e) => setSignupForm(prev => ({ ...prev, password: e.target.value }))}
+                    className="w-full bg-[#0B0F19] border border-[#1e293b] rounded-lg p-2.5 pl-10 text-sm text-white focus:outline-none focus:border-emerald-500 placeholder-gray-700"
+                    placeholder="••••••••••••"
+                    required
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-gray-600 pt-1">
+                  <span>STRENGTH: {signupForm.password.length > 8 ? "STRONG" : signupForm.password.length > 0 ? "WEAK" : "AWAITING INPUT"}</span>
+                  <div className="flex space-x-1">
+                    <span className={`h-1 w-6 rounded ${signupForm.password.length > 0 ? "bg-red-500" : "bg-gray-800"}`}></span>
+                    <span className={`h-1 w-6 rounded ${signupForm.password.length > 5 ? "bg-yellow-500" : "bg-gray-800"}`}></span>
+                    <span className={`h-1 w-6 rounded ${signupForm.password.length > 8 ? "bg-emerald-500" : "bg-gray-800"}`}></span>
+                  </div>
+                </div>
+              </div>
+
+              {authError && <p className="text-xs text-red-400 font-semibold">{authError}</p>}
+              {authSuccess && <p className="text-xs text-emerald-400 font-semibold">{authSuccess}</p>}
+
+              <div className="space-y-3 pt-2">
+                <div className="flex items-start space-x-2.5">
+                  <input type="checkbox" className="mt-1 bg-[#0B0F19] border border-gray-800 rounded accent-emerald-500" required />
+                  <label className="text-[10px] text-gray-400 leading-normal">
+                    I agree to the <span className="text-white hover:underline cursor-pointer">Institutional Terms of Service</span> and the <span className="text-white hover:underline cursor-pointer">Data Privacy Agreement</span>.
+                  </label>
+                </div>
+                <div className="flex items-start space-x-2.5">
+                  <input type="checkbox" className="mt-1 bg-[#0B0F19] border border-gray-800 rounded accent-emerald-500" />
+                  <label className="text-[10px] text-gray-400 leading-normal">
+                    Send me research updates, AI model performance reports, and platform changelogs. (Optional)
+                  </label>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold py-3 px-4 rounded-lg text-sm transition-all flex items-center justify-center space-x-2"
+              >
+                <span>PROVISION ACCOUNT</span>
+                <ChevronRight size={16} />
+              </button>
+            </form>
+
+            <div className="bg-[#0B0F19] border border-emerald-500/10 rounded-lg p-4 flex items-start space-x-3">
+              <Brain size={24} className="text-emerald-400 mt-0.5" />
+              <div>
+                <h5 className="text-xs font-bold text-white">ONBOARDING HINT</h5>
+                <p className="text-[10px] text-gray-500 mt-1 leading-normal">
+                  Institutional users get priority API access. Ensure your organization email matches your firm's domain for faster KYC verification.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center space-y-1 border-t border-[#1e293b]/40 pt-4">
+            <span className="text-[10px] text-gray-600 uppercase tracking-widest">Encrypted Connection ● AES-256</span>
+            <div className="flex justify-center space-x-4 text-[10px] text-gray-600 pt-2 font-mono">
+              <span>© 2026 QUANTX TECHNOLOGIES</span>
+              <span>● SYSTEM OPERATIONAL</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+=== REPLACEMENT ===
+  if (authState === "signup") {
+    // Matches 'Main Page.jpeg' (Create your terminal access)
+    return (
+      <div className="min-h-screen bg-[#070A13] text-[#F3F4F6] flex flex-col font-sans select-none overflow-y-auto">
+        {/* Global Header */}
+        <header className="flex justify-between items-center px-12 py-5 border-b border-[#1E293B]/40 bg-[#070A13]">
+          <div className="flex items-center space-x-2 text-[#10B981] text-xl font-black tracking-widest">
+            <Zap className="h-5 w-5 fill-current" />
+            <span>QUANTX</span>
+          </div>
+          <div className="flex items-center space-x-4 text-xs text-gray-400">
+            <span>Already have an institutional account?</span>
+            <button
+              onClick={() => setAuthState("login")}
+              className="border border-white hover:bg-white hover:text-black text-white font-extrabold px-4 py-1.5 rounded text-xs tracking-wider uppercase transition-all"
+            >
+              SIGN IN
+            </button>
+          </div>
+        </header>
+
+        {/* Columns Content */}
+        <div className="flex-1 flex flex-col lg:flex-row">
+          {/* Left column */}
+          <div className="hidden lg:flex lg:w-1/2 bg-[#050505] p-16 flex-col justify-between border-r border-[#1E293B] relative overflow-hidden">
+            {/* Subtle background glow */}
+            <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/5 rounded-full blur-[120px] pointer-events-none"></div>
+            
+            <div className="relative z-10">
+              {/* QUANTX Engine Pill */}
+              <div className="inline-block bg-[#051C12] border border-[#10B981]/30 text-[#10B981] px-3.5 py-1.5 rounded-full text-[10px] font-mono tracking-wider font-extrabold uppercase mb-8">
+                QUANTX ENGINE v4.2.0
+              </div>
+
+              {/* Title */}
+              <h1 className="text-5xl font-black text-white leading-tight mb-6 tracking-tight">
+                Institutional<br />
+                Intelligence<br />
+                <span className="text-[#10B981]">Redefined by AI.</span>
+              </h1>
+
+              {/* Description */}
+              <p className="text-gray-400 text-sm leading-relaxed mb-12 max-w-sm">
+                Join 500+ global hedge funds and prop desks leveraging quantum-speed execution and predictive market signals.
+              </p>
+
+              {/* Key Features List */}
+              <div className="space-y-8 max-w-md">
+                {/* Feature 1 */}
+                <div className="flex items-start space-x-4">
+                  <div className="h-10 w-10 rounded bg-[#090C12] flex items-center justify-center border border-[#1E293B] text-[#10B981] mt-0.5 flex-shrink-0">
+                    <Atom size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-white font-extrabold text-sm">Quantum-Grade Execution</h4>
+                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                      Sub-millisecond order routing through our global liquidity backbone.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Feature 2 */}
+                <div className="flex items-start space-x-4">
+                  <div className="h-10 w-10 rounded bg-[#090C12] flex items-center justify-center border border-[#1E293B] text-[#10B981] mt-0.5 flex-shrink-0">
+                    <Brain size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-white font-extrabold text-sm">Explainable AI Signals</h4>
+                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                      Real-time predictive scoring with full feature-contribution transparency.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Feature 3 */}
+                <div className="flex items-start space-x-4">
+                  <div className="h-10 w-10 rounded bg-[#090C12] flex items-center justify-center border border-[#1E293B] text-[#10B981] mt-0.5 flex-shrink-0">
+                    <Globe size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-white font-extrabold text-sm">Cross-Asset Intelligence</h4>
+                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                      Unified insights across Equities, FX, Commodities, and Digital Assets.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Partner Logos */}
+            <div className="relative z-10 pt-8 border-t border-[#1e293b]/40 flex items-center space-x-4">
+              <div className="bg-[#090C12] border border-[#1E293B] rounded px-4 py-1.5 flex items-center justify-center h-8">
+                <span className="text-[10px] font-black tracking-widest text-gray-400">NASDAQ</span>
+              </div>
+              <div className="bg-[#090C12] border border-[#1E293B] rounded px-4 py-1.5 flex items-center justify-center h-8">
+                <span className="text-[10px] font-bold tracking-tight text-gray-400">CME Group</span>
+              </div>
+              <div className="bg-[#090C12] border border-[#1E293B] rounded px-4 py-1.5 flex items-center justify-center h-8 flex-row space-x-1">
+                <span className="text-[#F59E0B] font-bold text-xs font-serif">R</span>
+                <span className="text-[10px] font-bold tracking-wider text-gray-400">REUTERS</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right column */}
+          <div className="w-full lg:w-1/2 flex flex-col justify-between p-12 bg-[#070A13] overflow-y-auto">
+            <div className="max-w-md w-full mx-auto my-auto space-y-6">
+              <div className="space-y-1.5">
+                <h2 className="text-3xl font-black tracking-tight text-white">Create your terminal access</h2>
+                <p className="text-xs text-gray-400 leading-relaxed">Complete the institutional verification to begin trading.</p>
+              </div>
+
+              <form onSubmit={handleSignupSubmit} className="space-y-5">
+                {/* Persona Selection */}
+                <div className="space-y-2.5">
+                  <label className="text-[10px] text-gray-400 font-extrabold uppercase tracking-wider">Select Professional Persona</label>
+                  <div className="grid grid-cols-2 gap-3.5">
+                    {[
+                      { id: "TRADER", title: "TRADER", desc: "Execution focused, high-frequency tools." },
+                      { id: "RESEARCHER", title: "RESEARCHER", desc: "Deep modeling and backtesting lab access." },
+                      { id: "PORTFOLIO_MGR", title: "PORTFOLIO MGR", desc: "Risk oversight and asset allocation." },
+                      { id: "SYSADMIN", title: "SYSADMIN", desc: "Infrastructure and API management." }
+                    ].map((p) => {
+                      const isSelected = signupForm.persona === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setSignupForm(prev => ({ ...prev, persona: p.id }))}
+                          className={`p-3.5 rounded border text-left flex flex-col justify-between transition-all min-h-[92px] ${
+                            isSelected
+                              ? "border-[#10B981] bg-[#0A1612] shadow-[0_0_15px_rgba(16,185,129,0.05)]"
+                              : "border-[#1E293B] bg-[#090C12] hover:border-gray-700"
+                          }`}
+                        >
+                          <div className="flex justify-between items-center w-full">
+                            <span className={`text-xs font-black tracking-wider ${isSelected ? "text-[#10B981]" : "text-white"}`}>
+                              {p.title}
+                            </span>
+                            {isSelected ? (
+                              <div className="h-3.5 w-3.5 rounded-full bg-[#10B981] flex items-center justify-center">
+                                <svg className="w-2.5 h-2.5 text-black stroke-[3.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                              </div>
+                            ) : (
+                              <div className="h-3.5 w-3.5 rounded-full border border-gray-700"></div>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-gray-500 mt-2 leading-normal">{p.desc}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Organization Input */}
+                <div className="space-y-1.5">
+                  <label className="text-xs text-gray-300 font-medium">Organization / Fund Name</label>
+                  <div className="relative">
+                    <Briefcase size={15} className="absolute left-3 top-3.5 text-gray-500" />
+                    <input
+                      type="text"
+                      value={signupForm.organization}
+                      onChange={(e) => setSignupForm(prev => ({ ...prev, organization: e.target.value }))}
+                      className="w-full bg-[#090C12] border border-[#1E293B] rounded p-3 pl-10 text-xs text-white focus:outline-none focus:border-[#10B981] placeholder-gray-700"
+                      placeholder="e.g. BlackEdge Capital"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Email Input */}
+                <div className="space-y-1.5">
+                  <label className="text-xs text-gray-300 font-medium">Professional Email Address</label>
+                  <div className="relative">
+                    <Mail size={15} className="absolute left-3 top-3.5 text-gray-500" />
+                    <input
+                      type="email"
+                      value={signupForm.email}
+                      onChange={(e) => setSignupForm(prev => ({ ...prev, email: e.target.value }))}
+                      className="w-full bg-[#090C12] border border-[#1E293B] rounded p-3 pl-10 text-xs text-white focus:outline-none focus:border-[#10B981] placeholder-gray-700"
+                      placeholder="name@organization.com"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Password Input */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs text-gray-300 font-medium">Access Password</label>
+                    <span className="text-[10px] text-gray-500">Min. 12 chars</span>
+                  </div>
+                  <div className="relative">
+                    <Lock size={15} className="absolute left-3 top-3.5 text-gray-500" />
+                    <input
+                      type="password"
+                      value={signupForm.password}
+                      onChange={(e) => setSignupForm(prev => ({ ...prev, password: e.target.value }))}
+                      className="w-full bg-[#090C12] border border-[#1E293B] rounded p-3 pl-10 text-xs text-white focus:outline-none focus:border-[#10B981] placeholder-gray-700"
+                      placeholder="••••••••••••"
+                      required
+                    />
+                  </div>
+                  {/* Password Strength Indicator */}
+                  <div className="mt-2.5">
+                    <div className="grid grid-cols-4 gap-1.5 h-1">
+                      <span className={`h-full rounded-sm transition-all duration-300 ${signupForm.password.length > 0 ? (signupForm.password.length < 6 ? "bg-red-500" : signupForm.password.length < 12 ? "bg-yellow-500" : "bg-[#10B981]") : "bg-gray-800"}`}></span>
+                      <span className={`h-full rounded-sm transition-all duration-300 ${signupForm.password.length >= 6 ? (signupForm.password.length < 12 ? "bg-yellow-500" : "bg-[#10B981]") : "bg-gray-800"}`}></span>
+                      <span className={`h-full rounded-sm transition-all duration-300 ${signupForm.password.length >= 9 ? (signupForm.password.length < 12 ? "bg-yellow-500" : "bg-[#10B981]") : "bg-gray-800"}`}></span>
+                      <span className={`h-full rounded-sm transition-all duration-300 ${signupForm.password.length >= 12 ? "bg-[#10B981]" : "bg-gray-800"}`}></span>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] text-gray-500 pt-1.5">
+                      <span>
+                        STRENGTH:{" "}
+                        <span className={`font-bold uppercase ${signupForm.password.length === 0 ? "text-gray-500" : signupForm.password.length < 6 ? "text-red-500" : signupForm.password.length < 12 ? "text-yellow-500" : "text-[#10B981]"}`}>
+                          {signupForm.password.length === 0 ? "AWAITING INPUT" : signupForm.password.length < 6 ? "WEAK" : signupForm.password.length < 12 ? "MEDIUM" : "STRONG"}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {authError && <p className="text-xs text-red-400 font-semibold">{authError}</p>}
+                {authSuccess && <p className="text-xs text-emerald-400 font-semibold">{authSuccess}</p>}
+
+                {/* Checkboxes in bordered boxes */}
+                <div className="space-y-3 pt-2">
+                  <div className="p-3 bg-[#090C12] border border-[#1E293B] rounded flex items-start space-x-3">
+                    <input
+                      type="checkbox"
+                      id="terms"
+                      className="mt-0.5 bg-[#090C12] border border-gray-800 rounded accent-[#10B981] h-3.5 w-3.5 cursor-pointer flex-shrink-0"
+                      required
+                    />
+                    <label htmlFor="terms" className="text-[11px] text-gray-400 leading-normal cursor-pointer select-none">
+                      I agree to the <span className="text-white underline cursor-pointer hover:text-[#10B981]">Institutional Terms of Service</span> and the <span className="text-white underline cursor-pointer hover:text-[#10B981]">Data Privacy Agreement</span>.
+                    </label>
+                  </div>
+                  <div className="p-3 bg-[#090C12] border border-[#1E293B] rounded flex items-start space-x-3">
+                    <input
+                      type="checkbox"
+                      id="updates"
+                      className="mt-0.5 bg-[#090C12] border border-gray-800 rounded accent-[#10B981] h-3.5 w-3.5 cursor-pointer flex-shrink-0"
+                    />
+                    <label htmlFor="updates" className="text-[11px] text-gray-400 leading-normal cursor-pointer select-none">
+                      Send me research updates, AI model performance reports, and platform changelogs. (Optional)
+                    </label>
+                  </div>
+                </div>
+
+                {/* Provision Button */}
+                <button
+                  type="submit"
+                  className="w-full bg-[#10B981] hover:bg-[#0E9F6E] active:scale-[0.99] text-black font-extrabold py-3.5 px-4 rounded text-xs tracking-wider transition-all flex items-center justify-center space-x-2 mt-2 cursor-pointer"
+                >
+                  <span>PROVISION ACCOUNT</span>
+                  <span className="font-mono text-sm font-black">&gt;</span>
+                </button>
+              </form>
+
+              {/* Onboarding Hint */}
+              <div className="bg-[#090C12] border border-[#10B981]/20 rounded p-4 flex items-start space-x-3.5">
+                <div className="text-[#10B981] mt-0.5 flex-shrink-0">
+                  <svg className="w-5 h-5 fill-none stroke-[2]" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h5 className="text-xs font-bold text-[#10B981] uppercase tracking-wider">ONBOARDING HINT</h5>
+                  <p className="text-[10px] text-gray-500 mt-1 leading-normal">
+                    Institutional users get priority API access. Ensure your organization email matches your firm's domain for faster KYC verification.
+                  </p>
+                </div>
+              </div>
+
+              {/* Encrypted Connection */}
+              <div className="flex items-center justify-center space-x-2 text-[10px] text-gray-600 tracking-wider pt-2">
+                <span>ENCRYPTED CONNECTION</span>
+                <Lock size={10} className="text-[#10B981]" />
+                <span>AES-256</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Global Footer */}
+        <footer className="flex justify-between items-center px-12 py-4 border-t border-[#1E293B]/40 bg-[#070A13] text-[9px] font-extrabold text-gray-500 uppercase tracking-widest">
+          <div className="flex items-center space-x-4">
+            <span>© 2024 QUANTX TECHNOLOGIES</span>
+            <span className="flex items-center space-x-1.5 text-[#10B981] bg-[#10B981]/5 border border-[#10B981]/20 px-2.5 py-0.5 rounded-full text-[8px]">
+              <span className="h-1 w-1 rounded-full bg-[#10B981] animate-pulse"></span>
+              <span>SYSTEM OPERATIONAL</span>
+            </span>
+          </div>
+          <div className="flex space-x-6">
+            <a href="#" className="hover:text-white transition-all">COMPLIANCE</a>
+            <a href="#" className="hover:text-white transition-all">EXCHANGE AGREEMENTS</a>
+            <a href="#" className="hover:text-white transition-all">HELP DESK</a>
+          </div>
+        </footer>
+      </div>
+    );
+  }

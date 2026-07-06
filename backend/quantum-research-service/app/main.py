@@ -34,6 +34,22 @@ def health():
         "service": "QuantX Quantum Research Service"
     }
 
+@app.get("/api/v1/quantum/experiments")
+def list_experiments():
+    """Return all past quantum experiments."""
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text("SELECT id, name, params, started_at FROM experiments ORDER BY started_at DESC LIMIT 50")
+            ).fetchall()
+        return [
+            {"id": r[0], "name": r[1], "params": r[2], "started_at": str(r[3])}
+            for r in rows
+        ]
+    except Exception as e:
+        logger.error(f"Error listing experiments: {e}")
+        return []
+
 @app.post("/api/v1/quantum/experiments")
 def create_experiment(req: CreateExperimentRequest):
     exp_id = str(uuid.uuid4())
