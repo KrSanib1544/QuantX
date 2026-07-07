@@ -236,6 +236,90 @@
                 background-color: #ffffff !important;
                 page-break-inside: avoid;
             }
+            .equation-box {
+                background-color: #f9f9f9 !important;
+                border: 1px solid #ccc !important;
+                color: #000000 !important;
+            }
+            .equation-box * {
+                color: #000000 !important;
+            }
+            
+            /* Mermaid Diagram print styling overrides */
+            .mermaid svg {
+                background: transparent !important;
+            }
+            .mermaid .node rect,
+            .mermaid .node circle,
+            .mermaid .node polygon,
+            .mermaid .node path,
+            .mermaid .node class,
+            .mermaid .actor rect,
+            .mermaid .note rect {
+                fill: #ffffff !important;
+                stroke: #000000 !important;
+                stroke-width: 1.5px !important;
+            }
+            .mermaid .node .label,
+            .mermaid .node text,
+            .mermaid .node span,
+            .mermaid .node div,
+            .mermaid .actor text,
+            .mermaid .actor span,
+            .mermaid .note text,
+            .mermaid .note span,
+            .mermaid .labelText,
+            .mermaid .loopText,
+            .mermaid .messageText {
+                color: #000000 !important;
+                fill: #000000 !important;
+            }
+            .mermaid .edgePath .path,
+            .mermaid .flowchart-link,
+            .mermaid .messageLine0,
+            .mermaid .messageLine1,
+            .mermaid .loopLine {
+                stroke: #000000 !important;
+                stroke-width: 1.5px !important;
+            }
+            .mermaid marker path,
+            .mermaid .marker {
+                fill: #000000 !important;
+                stroke: #000000 !important;
+            }
+            .mermaid .edgeLabel rect,
+            .mermaid .labelBox {
+                fill: #ffffff !important;
+                fill-opacity: 1 !important;
+                stroke: none !important;
+            }
+            .mermaid .edgeLabel span,
+            .mermaid .edgeLabel text {
+                color: #000000 !important;
+                fill: #000000 !important;
+            }
+            .mermaid .cluster rect {
+                fill: #f5f5f5 !important;
+                stroke: #000000 !important;
+                stroke-width: 1.5px !important;
+                stroke-dasharray: 5,5 !important;
+            }
+            .mermaid .cluster .label,
+            .mermaid .cluster text {
+                color: #000000 !important;
+                fill: #000000 !important;
+            }
+            .mermaid .actor-line {
+                stroke: #000000 !important;
+            }
+            .mermaid .active0,
+            .mermaid .active1,
+            .mermaid .active2,
+            .mermaid .active {
+                fill: #f5f5f5 !important;
+                stroke: #000000 !important;
+            }
+
             section {
                 page-break-inside: avoid;
             }
