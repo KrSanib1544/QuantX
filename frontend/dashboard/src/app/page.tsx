@@ -2087,7 +2087,7 @@ def handle_data(context, data):
 
                   <form onSubmit={handleLoginSubmit} className="space-y-4">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Operator Identifier</label>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Username</label>
                       <div className="relative">
                         <Mail size={16} className="absolute left-3 top-3.5 text-gray-600" />
                         <input
@@ -2105,7 +2105,7 @@ def handle_data(context, data):
 
                     <div className="space-y-1.5">
                       <div className="flex justify-between items-center">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Access Key</label>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Password</label>
                       </div>
                       <div className="relative">
                         <Lock size={16} className="absolute left-3 top-3.5 text-gray-600" />
